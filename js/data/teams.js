@@ -10,8 +10,8 @@ export const SEASON = 2026;
 
 export const TEAMS = [
   {
-    id: 'gs', name: 'Galatasaray', short: 'GS', city: 'İstanbul', stadium: 'RAMS Park', capacity: 52280,
-    colors: ['#A90432', '#FDB912'], rep: 90, balance: 32000000, coach: 'Okan Buruk', formation: '4-2-3-1',
+    id: 'gs', name: 'Galatasaray', short: 'GS', city: 'İstanbul', stadium: 'RAMS Park', capacity: 53978,
+    colors: ['#A90432', '#FDB912'], kit: { pattern: 'halves', colors: ['#A90432', '#FDB912'] }, rep: 90, balance: 32000000, coach: 'Okan Buruk', formation: '4-2-3-1',
     players: `
 1|Uğurcan Çakır|TR|30|GK|81
 19|Günay Güvenç|TR|35|GK|68
@@ -47,7 +47,7 @@ export const TEAMS = [
   },
   {
     id: 'fb', name: 'Fenerbahçe', short: 'FB', city: 'İstanbul', stadium: 'Chobani Stadyumu', capacity: 47430,
-    colors: ['#0B2A6F', '#FFED00'], rep: 88, balance: 30000000, coach: 'İsmail Kartal', formation: '4-2-3-1',
+    colors: ['#0B2A6F', '#FFED00'], kit: { pattern: 'stripes', colors: ['#FFED00', '#0B2A6F'] }, rep: 88, balance: 30000000, coach: 'İsmail Kartal', formation: '4-2-3-1',
     players: `
 31|Ederson|BR|33|GK|82
 34|Mert Günok|TR|37|GK|74
@@ -78,8 +78,8 @@ export const TEAMS = [
 `,
   },
   {
-    id: 'bjk', name: 'Beşiktaş', short: 'BJK', city: 'İstanbul', stadium: 'Tüpraş Stadyumu', capacity: 42590,
-    colors: ['#111111', '#FFFFFF'], rep: 84, balance: 22000000, coach: 'Vincenzo Italiano', formation: '4-2-3-1',
+    id: 'bjk', name: 'Beşiktaş', short: 'BJK', city: 'İstanbul', stadium: 'Tüpraş Stadyumu', capacity: 42684,
+    colors: ['#111111', '#FFFFFF'], kit: { pattern: 'plain', colors: ['#FFFFFF', '#111111'] }, rep: 84, balance: 22000000, coach: 'Vincenzo Italiano', formation: '4-2-3-1',
     players: `
 1|Alexander Nübel|DE|29|GK|79
 90|Doğan Alemdar|TR|23|GK|70|75
@@ -115,8 +115,8 @@ export const TEAMS = [
 `,
   },
   {
-    id: 'ts', name: 'Trabzonspor', short: 'TS', city: 'Trabzon', stadium: 'Papara Park', capacity: 40782,
-    colors: ['#7B1E3C', '#4FA3DC'], rep: 80, balance: 14000000, coach: 'Fatih Tekke', formation: '4-2-3-1',
+    id: 'ts', name: 'Trabzonspor', short: 'TS', city: 'Trabzon', stadium: 'Papara Park', capacity: 41000,
+    colors: ['#7B1E3C', '#4FA3DC'], kit: { pattern: 'stripes', colors: ['#7B1E3C', '#4FA3DC'] }, rep: 80, balance: 14000000, coach: 'Fatih Tekke', formation: '4-2-3-1',
     players: `
 24|André Onana|CM|30|GK|79|K:Manchester United
 1|Ahmet Doğan Yıldırım|TR|19|GK|58|72
@@ -151,8 +151,8 @@ export const TEAMS = [
 `,
   },
   {
-    id: 'ibfk', name: 'Başakşehir', short: 'İBFK', city: 'İstanbul', stadium: 'Başakşehir Fatih Terim Stadyumu', capacity: 17156,
-    colors: ['#E35205', '#0D2240'], rep: 70, balance: 6000000, coach: 'Nuri Şahin', formation: '4-2-3-1',
+    id: 'ibfk', name: 'Başakşehir', short: 'İBFK', city: 'İstanbul', stadium: 'Başakşehir Fatih Terim Stadyumu', capacity: 17067,
+    colors: ['#E35205', '#0D2240'], kit: { pattern: 'plain', colors: ['#E35205', '#0D2240'] }, rep: 70, balance: 6000000, coach: 'Nuri Şahin', formation: '4-2-3-1',
     players: `
 1|Volkan Babacan|TR|38|GK|68
 16|Muhammed Şengezer|TR|30|GK|68
@@ -185,8 +185,8 @@ export const TEAMS = [
 `,
   },
   {
-    id: 'sam', name: 'Samsunspor', short: 'SAM', city: 'Samsun', stadium: 'Samsun 19 Mayıs Stadyumu', capacity: 33919,
-    colors: ['#E30A17', '#FFFFFF'], rep: 66, balance: 6000000, coach: 'Thorsten Fink', formation: '4-2-3-1',
+    id: 'sam', name: 'Samsunspor', short: 'SAM', city: 'Samsun', stadium: 'Samsun Yeni 19 Mayıs Stadyumu', capacity: 34303,
+    colors: ['#E30A17', '#FFFFFF'], kit: { pattern: 'plain', colors: ['#E30A17', '#FFFFFF'] }, rep: 66, balance: 6000000, coach: 'Thorsten Fink', formation: '4-2-3-1',
     players: `
 1|Okan Kocuk|TR|31|GK|71
 25|Bilal Bayazıt|TR|27|GK|64
@@ -219,8 +219,8 @@ export const TEAMS = [
 `,
   },
   {
-    id: 'goz', name: 'Göztepe', short: 'GÖZ', city: 'İzmir', stadium: 'Gürsel Aksel Stadyumu', capacity: 19713,
-    colors: ['#FFD200', '#E30613'], rep: 64, balance: 5000000, coach: 'Stanimir Stoilov', formation: '3-5-2',
+    id: 'goz', name: 'Göztepe', short: 'GÖZ', city: 'İzmir', stadium: 'Gürsel Aksel Stadyumu', capacity: 23376,
+    colors: ['#FFD200', '#E30613'], kit: { pattern: 'halves', colors: ['#FFD200', '#E30613'] }, rep: 64, balance: 5000000, coach: 'Stanimir Stoilov', formation: '3-5-2',
     players: `
 25|Luka Gugeshashvili|GE|26|GK|72
 1|Arda Özçimen|TR|22|GK|60
@@ -238,7 +238,7 @@ export const TEAMS = [
 20|Novatus Miroshi|TZ|23|DM|68
 6|Alex Matos|EN|21|CM|66|73
 8|Alexis Antunes|CH|26|AM|70
--|Tino Anjorin|EN|24|AM|68
+18|Tino Anjorin|EN|24|AM|68
 10|Efkan Bekiroğlu|TR|30|AM|67
 7|André Henrique|BR|24|RW|68
 -|Ibrahim Sabra|JO|22|RW|64
@@ -250,8 +250,8 @@ export const TEAMS = [
 `,
   },
   {
-    id: 'kas', name: 'Kasımpaşa', short: 'KAS', city: 'İstanbul', stadium: 'Recep Tayyip Erdoğan Stadyumu', capacity: 14234,
-    colors: ['#1F3F8F', '#FFFFFF'], rep: 60, balance: 3500000, coach: 'Emre Belözoğlu', formation: '4-2-3-1',
+    id: 'kas', name: 'Kasımpaşa', short: 'KAS', city: 'İstanbul', stadium: 'Recep Tayyip Erdoğan Stadyumu', capacity: 13797,
+    colors: ['#1F3F8F', '#FFFFFF'], kit: { pattern: 'plain', colors: ['#1F3F8F', '#FFFFFF'] }, rep: 60, balance: 3500000, coach: 'Emre Belözoğlu', formation: '4-2-3-1',
     players: `
 1|Andreas Gianniotis|GR|33|GK|69
 25|Ali Emre Yanar|TR|23|GK|60
@@ -264,7 +264,7 @@ export const TEAMS = [
 2|Cláudio Winck|BR|32|RB|69
 22|Kamil Ahmet Çörekçi|TR|34|RB|64
 45|Ayberk Karapo|TR|20|RB|55
--|Godfried Frimpong|NL|26|LB|68
+21|Godfried Frimpong|NL|26|LB|68
 12|Mortadha Ben Ouanes|TN|31|LB|67
 -|Ömer Bayram|TR|34|LB|63
 26|Kerem Demirbay|DE|33|CM|70
@@ -274,7 +274,7 @@ export const TEAMS = [
 8|Atakan Müjde|TR|20|CM|58
 10|Haris Hajradinović|BA|32|AM|70
 34|Fousseni Diabaté|ML|30|RW|67
--|Jesurun Rak-Sakyi|GH|26|RW|67
+17|Jesurun Rak-Sakyi|GH|26|RW|67
 7|Ali Yavuz Kol|TR|23|RW|63
 11|Thiemoko Diarra|ML|22|LW|66|72
 -|Emirhan Yiğit|TR|19|LW|54
@@ -284,8 +284,8 @@ export const TEAMS = [
 `,
   },
   {
-    id: 'eyup', name: 'Eyüpspor', short: 'EYP', city: 'İstanbul', stadium: 'Recep Tayyip Erdoğan Stadyumu', capacity: 14234,
-    colors: ['#6A2C91', '#FFD100'], rep: 58, balance: 4000000, coach: 'Atila Gerin', formation: '4-3-3',
+    id: 'eyup', name: 'Eyüpspor', short: 'EYP', city: 'İstanbul', stadium: 'Recep Tayyip Erdoğan Stadyumu', capacity: 13797,
+    colors: ['#6A2C91', '#FFD100'], kit: { pattern: 'plain', colors: ['#6A2C91', '#FFD100'] }, rep: 58, balance: 4000000, coach: 'Atila Gerin', formation: '4-3-3',
     players: `
 31|Horațiu Moldovan|RO|28|GK|71|K:Atlético Madrid
 1|Emre Bilgin|TR|22|GK|63|70
@@ -304,7 +304,7 @@ export const TEAMS = [
 8|David Costa|CV|24|CM|67
 18|Hamza Akman|TR|21|CM|64|72
 88|Chandrel Massanga|CG|22|CM|62
--|Taşkın İlter|TR|30|CM|62
+28|Taşkın İlter|TR|30|CM|62
 70|Mete Demir|TR|20|CM|58
 10|Abdelhamid Sabiri|MA|29|AM|70
 77|Konrad Michalak|PL|28|RW|67
@@ -313,14 +313,14 @@ export const TEAMS = [
 11|Lenny Pintor|FR|26|LW|68
 29|Ahmed Abdullahi|NG|22|ST|66|73
 9|Yusuf Barası|TR|23|ST|66|72|K:Kasımpaşa
--|Abdou Khadre Sy|SN|22|ST|60
+25|Abdou Khadre Sy|SN|22|ST|60
 `,
   },
   {
-    id: 'koc', name: 'Kocaelispor', short: 'KOC', city: 'Kocaeli', stadium: 'Kocaeli Stadyumu', capacity: 34712,
-    colors: ['#00843D', '#111111'], rep: 58, balance: 3000000, coach: 'Selçuk İnan', formation: '4-2-3-1',
+    id: 'koc', name: 'Kocaelispor', short: 'KOC', city: 'Kocaeli', stadium: 'Turka Araç Muayene Kocaeli Stadyumu', capacity: 34829,
+    colors: ['#00843D', '#111111'], kit: { pattern: 'stripes', colors: ['#00843D', '#111111'] }, rep: 58, balance: 3000000, coach: 'Selçuk İnan', formation: '4-2-3-1',
     players: `
--|Aleksandar Jovanović|RS|34|GK|69
+1|Aleksandar Jovanović|RS|34|GK|69
 83|Serhat Öztaşdelen|TR|30|GK|62
 23|Onurcan Piri|TR|25|GK|60
 4|Tanguy Zoukrou|FR|23|CB|68|73
@@ -341,15 +341,15 @@ export const TEAMS = [
 7|Dan Agyei|GH|28|RW|66
 99|Rigoberto Rivas|HN|27|LW|66
 17|Arda Özyar|TR|20|LW|55
--|Bruno Petković|HR|32|ST|72
+9|Bruno Petković|HR|32|ST|72
 97|Florian Ayé|FR|29|ST|68
 11|Gonçalo Sousa|PT|22|ST|64
 26|Metehan Altunbaş|TR|24|ST|60
 `,
   },
   {
-    id: 'gen', name: 'Gençlerbirliği', short: 'GEN', city: 'Ankara', stadium: 'Eryaman Stadyumu', capacity: 20560,
-    colors: ['#E30613', '#111111'], rep: 57, balance: 3000000, coach: 'Metin Diyadin', formation: '4-4-2',
+    id: 'gen', name: 'Gençlerbirliği', short: 'GEN', city: 'Ankara', stadium: 'Eryaman Stadyumu', capacity: 20000,
+    colors: ['#E30613', '#111111'], kit: { pattern: 'halves', colors: ['#E30613', '#111111'] }, rep: 57, balance: 3000000, coach: 'Metin Diyadin', formation: '4-4-2',
     players: `
 70|İrfan Can Eğribayat|TR|28|GK|70
 23|Gökhan Akkan|TR|31|GK|67
@@ -381,8 +381,8 @@ export const TEAMS = [
 `,
   },
   {
-    id: 'ala', name: 'Alanyaspor', short: 'ALA', city: 'Alanya', stadium: 'Alanya Oba Stadyumu', capacity: 10128,
-    colors: ['#F58220', '#00843D'], rep: 60, balance: 4000000, coach: 'João Pereira', formation: '4-2-3-1',
+    id: 'ala', name: 'Alanyaspor', short: 'ALA', city: 'Alanya', stadium: 'Alanya Oba Stadyumu', capacity: 9727,
+    colors: ['#F58220', '#00843D'], kit: { pattern: 'plain', colors: ['#F58220', '#00843D'] }, rep: 60, balance: 4000000, coach: 'João Pereira', formation: '4-2-3-1',
     players: `
 48|Paulo Victor|BR|29|GK|70
 -|Yusuf Karagöz|TR|28|GK|60
@@ -414,8 +414,8 @@ export const TEAMS = [
 `,
   },
   {
-    id: 'kon', name: 'Konyaspor', short: 'KON', city: 'Konya', stadium: 'Konya Büyükşehir Stadyumu', capacity: 42000,
-    colors: ['#00843D', '#FFFFFF'], rep: 60, balance: 3500000, coach: 'Çağdaş Atan', formation: '4-2-3-1',
+    id: 'kon', name: 'Konyaspor', short: 'KON', city: 'Konya', stadium: 'Medaş Konya Büyükşehir Stadyumu', capacity: 41600,
+    colors: ['#00843D', '#FFFFFF'], kit: { pattern: 'band', colors: ['#00843D', '#FFFFFF'] }, rep: 60, balance: 3500000, coach: 'Çağdaş Atan', formation: '4-2-3-1',
     players: `
 13|Bahadır Han Güngördü|TR|27|GK|67
 1|Deniz Ertaş|TR|30|GK|66
@@ -444,15 +444,15 @@ export const TEAMS = [
 `,
   },
   {
-    id: 'gfk', name: 'Gaziantep FK', short: 'GFK', city: 'Gaziantep', stadium: 'Gaziantep Stadyumu', capacity: 33502,
-    colors: ['#D2232A', '#111111'], rep: 58, balance: 3500000, coach: 'Mirel Rădoi', formation: '4-2-3-1',
+    id: 'gfk', name: 'Gaziantep FK', short: 'GFK', city: 'Gaziantep', stadium: 'Gaziantep Stadyumu', capacity: 30320,
+    colors: ['#D2232A', '#111111'], kit: { pattern: 'stripes', colors: ['#D2232A', '#111111'] }, rep: 58, balance: 3500000, coach: 'Mirel Rădoi', formation: '4-2-3-1',
     players: `
 25|Kacper Tobiasz|PL|23|GK|69|74
 -|Ataberk Dadakdeniz|TR|22|GK|55
 81|Cemilhan Aslan|TR|22|GK|55
 4|Arda Kızıldağ|TR|27|CB|68
 14|Myenty Abena|SR|31|CB|68
--|Abakar Sylla|CI|23|CB|66
+21|Abakar Sylla|CI|23|CB|66
 77|Sabahattin Destici|TR|20|CB|56
 2|Luis Pérez|ES|31|RB|67
 18|Deian Sorescu|RO|29|RB|68
@@ -478,8 +478,8 @@ export const TEAMS = [
 `,
   },
   {
-    id: 'riz', name: 'Çaykur Rizespor', short: 'RİZ', city: 'Rize', stadium: 'Rize Şehir Stadyumu', capacity: 15332,
-    colors: ['#00843D', '#0072BC'], rep: 58, balance: 3500000, coach: 'Recep Uçar', formation: '4-2-3-1',
+    id: 'riz', name: 'Çaykur Rizespor', short: 'RİZ', city: 'Rize', stadium: 'Çaykur Didi Stadyumu', capacity: 14879,
+    colors: ['#00843D', '#0072BC'], kit: { pattern: 'halves', colors: ['#00843D', '#0072BC'] }, rep: 58, balance: 3500000, coach: 'Recep Uçar', formation: '4-2-3-1',
     players: `
 75|Yahia Fofana|CI|25|GK|72
 30|Zafer Görgen|TR|28|GK|60
@@ -511,8 +511,8 @@ export const TEAMS = [
 `,
   },
   {
-    id: 'erz', name: 'Erzurumspor FK', short: 'ERZ', city: 'Erzurum', stadium: 'Kazım Karabekir Stadyumu', capacity: 21374,
-    colors: ['#0072BC', '#FFFFFF'], rep: 52, balance: 2500000, coach: 'Serkan Özbalta', formation: '4-4-2',
+    id: 'erz', name: 'Erzurumspor FK', short: 'ERZ', city: 'Erzurum', stadium: 'Erzurum Kazım Karabekir Stadyumu', capacity: 21374,
+    colors: ['#0072BC', '#FFFFFF'], kit: { pattern: 'plain', colors: ['#0072BC', '#FFFFFF'] }, rep: 52, balance: 2500000, coach: 'Serkan Özbalta', formation: '4-4-2',
     players: `
 31|Matija Orbanić|HR|28|GK|65
 1|Ertuğrul Taşkıran|TR|36|GK|63
@@ -544,7 +544,7 @@ export const TEAMS = [
   },
   {
     id: 'amed', name: 'Amedspor', short: 'AMD', city: 'Diyarbakır', stadium: 'Diyarbakır Stadyumu', capacity: 33000,
-    colors: ['#E30613', '#00843D'], rep: 52, balance: 2500000, coach: 'Besnik Hasi', formation: '4-2-3-1',
+    colors: ['#E30613', '#00843D'], kit: { pattern: 'stripes', colors: ['#E30613', '#00843D'] }, rep: 52, balance: 2500000, coach: 'Besnik Hasi', formation: '4-2-3-1',
     players: `
 40|Alban Lafont|FR|27|GK|72
 27|Burak Bozan|TR|26|GK|58
@@ -576,7 +576,7 @@ export const TEAMS = [
   },
   {
     id: 'cor', name: 'Çorum FK', short: 'ÇOR', city: 'Çorum', stadium: 'Çorum Şehir Stadyumu', capacity: 15000,
-    colors: ['#E30613', '#111111'], rep: 50, balance: 3000000, coach: 'Uğur Uçar', formation: '4-2-3-1',
+    colors: ['#E30613', '#111111'], kit: { pattern: 'plain', colors: ['#E30613', '#111111'] }, rep: 50, balance: 3000000, coach: 'Uğur Uçar', formation: '4-2-3-1',
     players: `
 1|Marcos Felipe|BR|30|GK|70
 18|Erhan Erentürk|TR|31|GK|62

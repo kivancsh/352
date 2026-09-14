@@ -48,7 +48,7 @@ export function newGame(userTeamId, manager) {
   for (const t of TEAMS) {
     const team = {
       id: t.id, name: t.name, short: t.short, city: t.city, stadium: t.stadium, capacity: t.capacity,
-      colors: t.colors, rep: t.rep, coach: t.coach, formation: t.formation, mentality: 'balanced',
+      colors: t.colors, kit: t.kit, rep: t.rep, coach: t.coach, formation: t.formation, mentality: 'balanced',
       lineup: null, bench: null, squad: [], form: [],
       finance: { balance: t.balance, season: emptyLedger() },
     };

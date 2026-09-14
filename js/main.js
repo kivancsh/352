@@ -64,6 +64,26 @@ function badge(teamId, size = '') {
   if (!t) return '';
   return `<span class="badge ${size}" style="background:${t.colors[0]};color:${t.colors[1]};border-color:${t.colors[1]}">${esc(t.short)}</span>`;
 }
+// Kulüp renkleriyle çizilmiş forma (resmî forma tasarımı ya da logo değildir).
+let kitSeq = 0;
+function kitSvg(kit, size = 56) {
+  if (!kit) return '';
+  const [c1, c2] = kit.colors;
+  const id = `kit${kitSeq++}`;
+  const shirt = 'M30 10 L42 5 Q50 13 58 5 L70 10 L93 25 L83 43 L73 37 L73 95 L27 95 L27 37 L17 43 L7 25 Z';
+  let body = '';
+  if (kit.pattern === 'stripes') for (let x = 8; x < 100; x += 16) body += `<rect x="${x}" y="0" width="8" height="100" fill="${c2}"/>`;
+  else if (kit.pattern === 'halves') body = `<rect x="50" y="0" width="50" height="100" fill="${c2}"/>`;
+  else if (kit.pattern === 'band') body = `<rect x="0" y="42" width="100" height="16" fill="${c2}"/>`;
+  const stroke = kit.pattern === 'plain' ? c2 : 'rgba(0,0,0,.35)';
+  return `<svg class="kit" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true">`
+    + `<defs><clipPath id="${id}"><path d="${shirt}"/></clipPath></defs>`
+    + `<g clip-path="url(#${id})"><rect width="100" height="100" fill="${c1}"/>${body}</g>`
+    + `<path d="${shirt}" fill="none" stroke="${stroke}" stroke-width="3" stroke-linejoin="round"/>`
+    + `<path d="M42 5 Q50 13 58 5" fill="none" stroke="${c2}" stroke-width="4"/></svg>`;
+}
+const teamKit = (teamId, size) => kitSvg(T(teamId)?.kit || TEAMS.find((t) => t.id === teamId)?.kit, size);
+
 const ovrCls = (o) => (o >= 80 ? 'r-elite' : o >= 74 ? 'r-good' : o >= 66 ? 'r-mid' : 'r-low');
 const ovrPill = (o) => `<span class="ovr ${ovrCls(o)}">${o}</span>`;
 const posPill = (pos) => `<span class="pos g-${POS_GROUP[pos]}">${POS_TR[pos]}</span>`;
@@ -112,6 +132,28 @@ function save() {
     toast('Oyun kaydedilemedi (tarayıcı depolaması dolu olabilir).');
   }
 }
+// Kayıtlı oyunlarda değişmeyen bilgileri (stadyum, forma, forma numarası) güncel veriyle eşitler.
+function syncStatic(s) {
+  const nums = {};
+  for (const t of TEAMS) {
+    const team = s.teams[t.id];
+    if (team) {
+      team.stadium = t.stadium;
+      team.capacity = t.capacity;
+      team.kit = t.kit;
+    }
+    for (const line of t.players.trim().split('\n')) {
+      const [num, name] = line.split('|');
+      if (num && num !== '-') nums[`${t.id}|${name}`] = Number(num);
+    }
+  }
+  for (const p of Object.values(s.players)) {
+    const n = nums[`${p.teamId}|${p.name}`];
+    if (!p.num && n) p.num = n;
+  }
+  return s;
+}
+
 function loadSave() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -231,7 +273,7 @@ function renderStart() {
           <div class="team-pick">
             ${teams.map((t) => `
               <button class="team-card ${pendingStart.teamId === t.id ? 'on' : ''}" data-act="pickTeam" data-id="${t.id}">
-                <span class="badge" style="background:${t.colors[0]};color:${t.colors[1]};border-color:${t.colors[1]}">${esc(t.short)}</span>
+                ${kitSvg(t.kit, 44)}
                 <div class="grow">
                   <div style="font-weight:700">${esc(t.name)}</div>
                   <div class="muted small">${esc(t.city)} · Bütçe ${fmtMoney(t.balance)}</div>
@@ -257,7 +299,7 @@ function renderStart() {
 // ---------- Ana sayfa ----------
 function teamCol(id) {
   const t = T(id);
-  return `<div class="vs-team">${badge(id, 'lg')}<div class="nm">${esc(t.name)}</div>${ovrPill(teamRating(squadOf(state, id)))}</div>`;
+  return `<div class="vs-team">${teamKit(id, 64)}<div class="nm">${esc(t.name)}</div>${ovrPill(teamRating(squadOf(state, id)))}</div>`;
 }
 
 function homeHtml() {
@@ -586,7 +628,7 @@ function openTeam(id) {
   const sq = squadOf(state, id).sort((a, b) => POSITIONS.indexOf(a.pos) - POSITIONS.indexOf(b.pos) || b.ovr - a.ovr);
   const table = standings(state);
   const pos = table.findIndex((r) => r.id === id) + 1;
-  openModal(`${sheetHead(esc(t.name), badge(id))}
+  openModal(`${sheetHead(esc(t.name), teamKit(id, 44))}
     <div class="grid3">
       <div class="stat"><span>Sıra</span><b>${pos}.</b></div>
       <div class="stat"><span>Güç</span><b>${teamRating(sq)}</b></div>
@@ -618,9 +660,9 @@ function openReport(fid) {
   void ratingList;
   openModal(`${sheetHead(`${f.round}. hafta · ${fmtDate(f.date)}`)}
     <div class="vs">
-      <div class="vs-team">${badge(f.home, 'lg')}<div class="nm">${esc(T(f.home).name)}</div></div>
+      <div class="vs-team">${teamKit(f.home, 64)}<div class="nm">${esc(T(f.home).name)}</div></div>
       <div class="vs-mid" style="font-size:32px">${f.hg} - ${f.ag}<small>${f.attendance ? `${f.attendance.toLocaleString('tr-TR')} seyirci` : ''}</small></div>
-      <div class="vs-team">${badge(f.away, 'lg')}<div class="nm">${esc(T(f.away).name)}</div></div>
+      <div class="vs-team">${teamKit(f.away, 64)}<div class="nm">${esc(T(f.away).name)}</div></div>
     </div>
     <div class="grid2 small"><div>${side(0) || '<span class="muted">—</span>'}</div><div style="text-align:right">${side(1) || '<span class="muted">—</span>'}</div></div>
     ${reds.length ? `<div class="small muted" style="margin-top:6px">🟥 ${reds.map((e) => `${esc(P(e.pid)?.name || '')} ${e.t}'`).join(', ')}</div>` : ''}
@@ -977,9 +1019,9 @@ function renderMatch() {
   $app.innerHTML = `
     <div class="match">
       <div class="sb">
-        <div class="sb-team">${badge(h.teamId, 'lg')}<span class="ellipsis" style="max-width:100%">${esc(h.name)}</span></div>
+        <div class="sb-team">${teamKit(h.teamId, 60)}<span class="ellipsis" style="max-width:100%">${esc(h.name)}</span></div>
         <div><div class="sb-score">${m.score[0]} - ${m.score[1]}</div><div class="sb-min center">${m.finished ? 'MS' : m.minute === 0 ? 'Başlıyor' : m.half === 2 && m.minute === 45 ? 'İY' : `${m.clock()}'`}</div></div>
-        <div class="sb-team">${badge(a.teamId, 'lg')}<span class="ellipsis" style="max-width:100%">${esc(a.name)}</span></div>
+        <div class="sb-team">${teamKit(a.teamId, 60)}<span class="ellipsis" style="max-width:100%">${esc(a.name)}</span></div>
       </div>
       <div class="poss"><div style="width:${hp}%;background:${hc}"></div><div style="flex:1;background:${ac}"></div></div>
       <div class="mstats"><span>%${hp} · ${st[0].shots} şut (${st[0].onT})</span><span>Topa sahip olma / Şut (isabet)</span><span>(${st[1].onT}) ${st[1].shots} şut · %${100 - hp}</span></div>
@@ -1197,7 +1239,7 @@ const actions = {
     openMessage(state.inbox[0].id);
   },
   resume: () => {
-    state = loadSave();
+    state = syncStatic(loadSave());
     render();
   },
 };
@@ -1260,7 +1302,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 function boot() {
   const saved = loadSave();
   if (saved && saved.teams?.[saved.userTeamId]) {
-    state = saved;
+    state = syncStatic(saved);
     if (state.live) {
       seedRng(state.rng);
       const m = Match.restore(state, state.live);

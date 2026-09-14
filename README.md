@@ -53,7 +53,7 @@ forma no | ad soyad | ülke kodu | yaş | mevki | güç [| potansiyel] [| K:kira
 22|Fabio Miretti|IT|22|CM|73|78|K:Juventus
 ```
 
-Bu proje hayran yapımı, ticari olmayan bir oyundur. Türkiye Futbol Federasyonu, Süper Lig ya da herhangi bir kulüple bağlantısı yoktur. Kulüp logoları kullanılmaz.
+Bu proje hayran yapımı, ticari olmayan bir oyundur. Türkiye Futbol Federasyonu, Süper Lig ya da herhangi bir kulüple bağlantısı yoktur. Kulüp logoları ve resmî forma tasarımları lisans gerektirdiği için kullanılmaz; formalar kulüplerin renk düzenleriyle çizilmiştir. Stadyum adları ve kapasiteleri 2026-27 sezonu resmî listesine göredir.
 
 ## Bilgisayarda çalıştırmak
 
