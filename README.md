@@ -1,5 +1,67 @@
-# Süper Lig Menajer
+# ⚽ Süper Lig Menajer 2026-27
 
-2026-27 Türkiye Süper Lig teknik direktörlük oyunu. Telefonda tarayıcıdan oynanır, kurulum gerektirmez.
+2026-27 Trendyol Süper Lig için yapılmış bir teknik direktörlük oyunu. Telefonda tarayıcıdan oynanır, kurulum gerektirmez. İstersen ana ekrana ekleyip uygulama gibi de kullanabilirsin.
 
-> Geliştirme aşamasında.
+**Oyna:** https://kivancsh.github.io/super-lig-menajer/
+
+## Neler var?
+
+- **18 takım ve gerçek kadrolar:** Ligdeki takımların Eylül 2026 itibarıyla kadroları, forma numaraları ve kiralık oyuncuları. Toplam yaklaşık 490 oyuncu var.
+- **Canlı maç motoru:** Maçlar dakika dakika simüle edilir. Canlı anlatımı izleyebilir, oyuncu değiştirebilir, oyun anlayışını (savunma / dengeli / hücum) değiştirebilir ya da sonucu anında görebilirsin.
+- **Taktik:** 6 farklı diziliş, sahada ilk 11 düzenleme, yedek kulübesi ve mevki uyumu.
+- **Transferler:** Yaz ve ara transfer dönemleri var.
+  - Başka kulüplerin oyuncularına bonservis ya da kiralama teklifi yapabilirsin.
+  - Kulüpler teklifini kabul edebilir, reddedebilir ya da karşı teklif yapabilir.
+  - Kulüple anlaşınca oyuncuyla maaş ve süre pazarlığı yaparsın.
+  - Serbest oyuncularla her zaman anlaşabilirsin.
+- **Senin oyuncularına gelen teklifler:** Türk ve yabancı kulüpler oyuncuların için teklif gönderir. Kabul edebilir, reddedebilir ya da pazarlık yapabilirsin. Büyük kulübün teklifini reddedersen oyuncunun morali düşer. Genç oyuncuların için kiralama talepleri de gelir.
+- **Diğer kulüplerin transferleri:** Yapay zekâ kulüpleri kendi aralarında transfer ve kiralama yapar, yurt dışına oyuncu satar.
+- **Sakatlıklar ve cezalar:** Kas yorgunluğundan çapraz bağ kopmasına kadar farklı süreli sakatlıklar var. Dört sarı kart ya da kırmızı kart gören oyuncu ceza alır.
+- **Kondisyon, moral ve gelişim:** Genç oyuncular forma şansı buldukça gelişir, yaşlı oyuncular yavaş yavaş düşer.
+- **Finans:** Bilet, yayın ve sponsor gelirleri, maaşlar, işletme giderleri ve sezon sonu ödülleri.
+- **Yönetim:** Kulübünün itibarına göre bir sezon hedefi konur. Sonuçlar kötü giderse görevden alınabilirsin.
+- **Sezon sonu:** Şampiyon, gol kralı, asist kralı ve sezonun oyuncusu belirlenir. Ardından yeni sezon başlar: sözleşmeler biter, oyuncular yaşlanır ya da emekli olur, altyapıdan gençler gelir.
+- **Kayıt:** Oyun her adımda telefonundaki tarayıcıya otomatik kaydedilir.
+
+## Telefonda uygulama gibi kullanmak
+
+- **iPhone (Safari):** Paylaş → *Ana Ekrana Ekle*
+- **Android (Chrome):** ⋮ menüsü → *Ana ekrana ekle* / *Uygulamayı yükle*
+
+## Veri hakkında
+
+- Takım listesi ve kadrolar Eylül 2026 itibarıyla kamuya açık kaynaklardan derlendi (Wikipedia kadro sayfaları, kulüp ve basın duyuruları).
+- **Oyuncu güç değerleri (rating), potansiyeller, bazı yaşlar, maaşlar ve sözleşme süreleri bu oyun için yapılmış tahminlerdir.** Resmî veri değildir.
+- Hatalı ya da eksik bir oyuncu görürsen [`js/data/teams.js`](js/data/teams.js) dosyasını düzenleyip pull request açabilirsin. Satır biçimi şöyle:
+
+```
+forma no | ad soyad | ülke kodu | yaş | mevki | güç [| potansiyel] [| K:kiralandığı kulüp]
+10|Mohamed Salah|EG|34|RW|83
+22|Fabio Miretti|IT|22|CM|73|78|K:Juventus
+```
+
+Bu proje hayran yapımı, ticari olmayan bir oyundur. Türkiye Futbol Federasyonu, Süper Lig ya da herhangi bir kulüple bağlantısı yoktur. Kulüp logoları kullanılmaz.
+
+## Bilgisayarda çalıştırmak
+
+Derleme adımı yok, sadece statik dosyalar var. Proje klasöründe basit bir sunucu başlatman yeterli:
+
+```bash
+python3 -m http.server 8765
+```
+
+Sonra tarayıcıda `http://localhost:8765` adresini aç.
+
+## Proje yapısı
+
+| Dosya | İçerik |
+|---|---|
+| `js/data/teams.js` | Takımlar, kadrolar, yabancı kulüpler |
+| `js/engine/match.js` | Dakika dakika maç motoru |
+| `js/engine/game.js` | Takvim, fikstür, finans, yönetim, sezon geçişi |
+| `js/engine/transfers.js` | Teklifler, kiralamalar, sözleşmeler, yapay zekâ kulüpleri |
+| `js/engine/players.js` | Mevkiler, değer, maaş, sakatlık, gelişim |
+| `js/engine/tactics.js` | Dizilişler, otomatik ilk 11, takım gücü |
+| `js/main.js` | Mobil arayüz |
+
+Fikir olarak, kendi kendine işleyen futbol dünyası simülatörü [Open Football](https://github.com/ZOXEXIVO/open-football) projesinden ilham alındı. Kod sıfırdan yazıldı.

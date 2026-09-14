@@ -1,0 +1,16 @@
+{
+  "name": "Süper Lig Menajer 2026-27",
+  "short_name": "SL Menajer",
+  "description": "2026-27 Türkiye Süper Lig teknik direktörlük oyunu",
+  "lang": "tr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1410",
+  "theme_color": "#0b1410",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
