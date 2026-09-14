@@ -55,6 +55,7 @@ button { cursor: pointer; }
 }
 .btn-continue:active { transform: scale(0.97); }
 .btn-continue small { font-weight: 600; opacity: 0.75; margin-left: 2px; }
+.btn-continue.live { background: var(--bad); color: #fff; box-shadow: 0 4px 16px rgba(240, 86, 79, 0.3); }
 .btn-continue.ready { background: var(--card2); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .online { border-color: rgba(90, 169, 255, 0.45); background: linear-gradient(135deg, rgba(90, 169, 255, 0.12), var(--card) 60%); }
 .code-big { font-size: 34px; font-weight: 900; letter-spacing: 0.18em; text-align: center; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; margin: 6px 0; }

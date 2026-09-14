@@ -36,6 +36,7 @@ Aynı ligde her arkadaşın bir takımı yönetir (en fazla 8 kişi).
 Bilmen gerekenler:
 
 - Birbirinizin oyuncularına teklif yapabilir, karşı teklif verip pazarlık edebilirsiniz.
+- Maç günü herkes hazır olunca maçlar **canlı** oynanır: herkes aynı anda izler, kendi takımında oyuncu değiştirip oyun anlayışını değiştirebilir. Herkes oy verirse maç sonuca atlanır. Müdahale etmeyen tarafın değişikliklerini yapay zekâ yapar.
 - Yanıtlanmayan teklifler 7 oyun gününde düşer; kimse diğerlerini sonsuza kadar bekletemez.
 - Ligi o an çevrimiçi olan oyunculardan biri işler. Herkes çıkarsa lig bekler, biri uygulamayı açınca kaldığı yerden devam eder.
 - Ortak kariyerde görevden alınma yoktur.

@@ -45,6 +45,7 @@ let pendingTactics = null;
 let tacticsTimer = null;
 let seenPlayed = null;
 let readIds = new Set();
+let mpLive = { open: false, fid: null, data: null, autoOpened: null };
 
 // ---------- Yardımcılar ----------
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -263,11 +264,13 @@ function renderMp() {
   if (!lg) return renderOnlineMenu();
   if (lg.status === 'lobby') return renderLobby();
   if (!state) return renderConnecting('Lig verisi indiriliyor…');
+  if (mpLive.open && mpLive.data && !mpLive.data.finished) return renderMpLive();
   if (state.phase === 'seasonEnd' && state.seasonSummary) return renderSeasonEnd();
   return renderGame();
 }
 
 function readyButton() {
+  if (mpLive.data && !mpLive.data.finished && mpLive.data.matches?.length) return '<button class="btn-continue live" data-act="mpLiveOpen">🔴 Canlı</button>';
   const lg = session.league;
   const members = Object.values(lg.members);
   const n = members.filter((m) => m.ready).length;
@@ -470,12 +473,15 @@ function onlineCard() {
   if (stop?.reason === 'matchday') text = hasMatchThisRound ? '⚽ Maç haftası! Kadronu ve taktiğini ayarla, sonra Hazırım\'a bas.' : '⚽ Maç haftası. Hazır olduğunda Hazırım\'a bas.';
   else if (stop?.reason === 'week') text = '📅 Bir hafta geçti. Transferlerini ve kadronu gözden geçir, sonra Hazırım\'a bas.';
   else if (stop?.reason === 'newSeason') text = '🆕 Yeni sezon başladı, transfer dönemi açık.';
+  const liveNow = mpLive.data && !mpLive.data.finished && mpLive.data.matches?.length;
+  if (liveNow) text = '🔴 Maçlar şu an canlı oynanıyor.';
   const now = Date.now();
   const processing = lg.processor && lg.processor.until > now;
   const members = Object.entries(lg.members).sort((a, b) => a[1].joinedAt - b[1].joinedAt);
   return `<section class="card online">
     <div class="card-h">Ortak kariyer <span>Kod: <b>${esc(lg.code)}</b></span></div>
     <div class="small" style="margin-bottom:6px">${text}</div>
+    ${liveNow ? '<button class="btn primary block" data-act="mpLiveOpen" style="margin:4px 0 8px">🔴 Canlı maçı izle</button>' : ''}
     ${members.map(([u, m]) => `<div class="member">${teamKit(m.teamId, 30)}<div class="grow"><b>${esc(m.name)}</b>${u === session.uid ? ' <span class="tag">sen</span>' : ''}<div class="muted small">${esc(T(m.teamId)?.name || teamNameStatic(m.teamId))}</div></div>${m.ready ? '<span class="tag ok">Hazır</span>' : '<span class="tag warn">Bekleniyor</span>'}</div>`).join('')}
     ${!processing ? '<div class="muted small" style="margin-top:6px"><span class="spin"></span> Lig işleyicisi aranıyor…</div>' : ''}
     <button class="btn ghost block" data-act="mpShare">Arkadaş davet et</button>
@@ -1218,13 +1224,17 @@ function quickMatch(fid) {
 }
 
 function renderMatch() {
-  const m = live.m;
+  $app.innerHTML = matchScreenHtml(live.m, { sp: true });
+}
+
+// Maç ekranı: tek oyunculu kariyerde yerel maç, ortak kariyerde işleyiciden gelen canlı durum.
+function matchScreenHtml(m, opts = {}) {
   const [h, a] = m.sides;
   const st = m.stats;
   const possTotal = Math.max(1, st[0].poss + st[1].poss);
   const hp = Math.round((st[0].poss / possTotal) * 100);
   const us = m.userSide;
-  const side = m.sides[us];
+  const side = us >= 0 ? m.sides[us] : null;
   const feed = m.events.slice().reverse().map((e) => `<div class="ev ${e.type}"><span class="t">${e.type === 'half' || e.type === 'end' || e.type === 'info' ? '' : `${e.t}'`}</span><span>${esc(e.text)}</span></div>`).join('');
   const visible = (colors) => {
     const n = parseInt(colors[0].slice(1), 16);
@@ -1233,23 +1243,45 @@ function renderMatch() {
   };
   const hc = visible(T(h.teamId).colors);
   const ac = visible(T(a.teamId).colors);
-  $app.innerHTML = `
-    <div class="match">
-      <div class="sb">
-        <div class="sb-team">${teamKit(h.teamId, 60)}<span class="ellipsis" style="max-width:100%">${esc(h.name)}</span></div>
-        <div><div class="sb-score">${m.score[0]} - ${m.score[1]}</div><div class="sb-min center">${m.finished ? 'MS' : m.minute === 0 ? 'Başlıyor' : m.half === 2 && m.minute === 45 ? 'İY' : `${m.clock()}'`}</div></div>
-        <div class="sb-team">${teamKit(a.teamId, 60)}<span class="ellipsis" style="max-width:100%">${esc(a.name)}</span></div>
-      </div>
-      <div class="poss"><div style="width:${hp}%;background:${hc}"></div><div style="flex:1;background:${ac}"></div></div>
-      <div class="mstats"><span>%${hp} · ${st[0].shots} şut (${st[0].onT})</span><span>Topa sahip olma / Şut (isabet)</span><span>(${st[1].onT}) ${st[1].shots} şut · %${100 - hp}</span></div>
-      ${m.finished ? `<button class="btn primary block" data-act="mFinish">Maç raporu ve devam</button>` : `
+  const mentSeg = (act) => `<div class="seg">${Object.entries(MENTALITIES).map(([k, v]) => `<button class="${side.mentality === k ? 'on' : ''}" data-act="${act}" data-v="${k}">${v.label}</button>`).join('')}</div>`;
+
+  let top = '';
+  let controls;
+  if (opts.sp) {
+    controls = m.finished ? '<button class="btn primary block" data-act="mFinish">Maç raporu ve devam</button>' : `
       <div class="mctl">
         <button class="btn" data-act="mPause">${live.paused ? '▶' : '⏸'}</button>
         ${[1, 2, 4].map((s) => `<button class="btn ${live.speed === s ? 'on' : ''}" data-act="mSpeed" data-v="${s}">${s}x</button>`).join('')}
         <button class="btn grow" data-act="mSubs">🔄 Değişiklik (${side.subsLeft})</button>
       </div>
-      <div class="seg">${Object.entries(MENTALITIES).map(([k, v]) => `<button class="${side.mentality === k ? 'on' : ''}" data-act="mMent" data-v="${k}">${v.label}</button>`).join('')}</div>
-      <button class="btn ghost block" data-act="mSkip" style="margin-top:8px">⏭ Sonuca atla</button>`}
+      ${mentSeg('mMent')}
+      <button class="btn ghost block" data-act="mSkip" style="margin-top:8px">⏭ Sonuca atla</button>`;
+  } else {
+    const members = Object.values(session.league.members);
+    const votes = members.filter((x) => x.skipLive === opts.liveId).length;
+    const myVote = session.league.members[session.uid]?.skipLive === opts.liveId;
+    if (opts.all.length > 1) {
+      top = `<div class="tabs">${opts.all.map((x) => `<button class="${x.fxId === m.fx.id ? 'on' : ''}" data-act="mpLiveSwitch" data-id="${x.fxId}">${esc(T(x.sides[0].teamId).short)} ${x.score[0]}-${x.score[1]} ${esc(T(x.sides[1].teamId).short)}</button>`).join('')}</div>`;
+    }
+    controls = m.finished
+      ? '<div class="note small center" style="margin-top:10px"><span class="spin"></span> Maç bitti, sonuçlar işleniyor…</div>'
+      : `${side
+        ? `<div class="mctl"><button class="btn grow" data-act="mpSubs">🔄 Değişiklik (${side.subsLeft})</button></div>${mentSeg('mpMent')}`
+        : '<div class="note small center" style="margin-top:10px">Bu maçı izleyici olarak takip ediyorsun.</div>'}
+      <div class="btns"><button class="btn" data-act="mpSkip" ${myVote ? 'disabled' : ''}>⏭ Sonuca geç (${votes}/${members.length})</button><button class="btn ghost" data-act="mpLiveClose">Ana sayfa</button></div>`;
+  }
+
+  return `
+    <div class="match">
+      ${top}
+      <div class="sb">
+        <div class="sb-team">${teamKit(h.teamId, 60)}<span class="ellipsis" style="max-width:100%">${esc(h.name)}</span></div>
+        <div><div class="sb-score">${m.score[0]} - ${m.score[1]}</div><div class="sb-min center">${opts.sp ? '' : '🔴 '}${m.finished ? 'MS' : m.minute === 0 ? 'Başlıyor' : m.half === 2 && m.minute === 45 ? 'İY' : `${m.clock()}'`}</div></div>
+        <div class="sb-team">${teamKit(a.teamId, 60)}<span class="ellipsis" style="max-width:100%">${esc(a.name)}</span></div>
+      </div>
+      <div class="poss"><div style="width:${hp}%;background:${hc}"></div><div style="flex:1;background:${ac}"></div></div>
+      <div class="mstats"><span>%${hp} · ${st[0].shots} şut (${st[0].onT})</span><span>Topa sahip olma / Şut (isabet)</span><span>(${st[1].onT}) ${st[1].shots} şut · %${100 - hp}</span></div>
+      ${controls}
       <div class="feed">${feed || '<div class="muted small center" style="padding:20px">Oyuncular sahaya çıkıyor…</div>'}</div>
     </div>`;
 }
@@ -1274,6 +1306,77 @@ function openSubs(outPid = null) {
   const bench = side.bench.filter((id) => !side.used.has(id)).map(P);
   openModal(`${sheetHead(`${esc(P(outPid).name)} yerine`)}
     <div class="list">${bench.map((p) => `<button class="item" data-act="mIn" data-out="${outPid}" data-id="${p.id}">${posPill(p.pos)}<div class="grow"><div class="name ellipsis">${esc(p.name)}</div><div class="sub">${POS_TR[out.slot]} mevkiinde uyum %${Math.round(posFit(p.pos, out.slot) * 100)}</div></div>${ovrPill(p.ovr)}</button>`).join('') || '<div class="muted">Yedek kulübesinde oyuncu yok.</div>'}</div>`);
+}
+
+// ---------- Ortak kariyer canlı maç ----------
+function currentLiveSnap() {
+  const d = mpLive.data;
+  if (!d || !d.matches?.length) return null;
+  return d.matches.find((x) => x.fxId === mpLive.fid) || d.matches[0];
+}
+
+function renderMpLive() {
+  const snap = currentLiveSnap();
+  const m = snap && Match.restore(state, snap);
+  if (!m) {
+    mpLive.open = false;
+    return renderGame();
+  }
+  mpLive.fid = snap.fxId;
+  m.userSide = m.sides.findIndex((s) => s.teamId === state.userTeamId);
+  $app.innerHTML = matchScreenHtml(m, { liveId: mpLive.data.id, all: mpLive.data.matches });
+}
+
+function openLiveView() {
+  const d = mpLive.data;
+  if (!d || d.finished || !d.matches?.length) return toast('Şu an canlı maç yok.');
+  const mine = d.matches.find((x) => x.sides.some((s) => s.teamId === state.userTeamId));
+  mpLive.fid = (mine || d.matches[0]).fxId;
+  mpLive.open = true;
+  closeModal();
+  render();
+}
+
+function onMpLive(d) {
+  const prev = mpLive.data;
+  mpLive.data = d;
+  if (!state || !session) return;
+  const isLive = !!(d && !d.finished && d.matches?.length);
+  const wasLive = !!(prev && !prev.finished && prev.matches?.length);
+  if (isLive && mpLive.autoOpened !== d.id) {
+    mpLive.autoOpened = d.id;
+    if (d.matches.some((x) => x.sides.some((s) => s.teamId === state.userTeamId))) {
+      toast('🔴 Maçın canlı başladı!');
+      openLiveView();
+      return;
+    }
+  }
+  if (!isLive) mpLive.open = false;
+  if (mpLive.open || isLive !== wasLive || (view.tab === 'home' && $modal.hidden)) render();
+}
+
+function openMpSubs(outPid = null) {
+  const snap = currentLiveSnap();
+  const m = snap && Match.restore(state, snap);
+  if (!m || m.finished) return toast('Maç bitti.');
+  const us = m.sides.findIndex((s) => s.teamId === state.userTeamId);
+  if (us < 0) return;
+  const side = m.sides[us];
+  if (side.subsLeft <= 0) return toast('Değişiklik hakkınız kalmadı.');
+  if (!outPid) {
+    openModal(`${sheetHead('Oyundan çıkacak oyuncu')}
+      <div class="muted small" style="margin-bottom:8px">Sen seçim yaparken maç devam ediyor.</div>
+      <div class="list">${side.onPitch.map((o) => {
+        const p = P(o.pid);
+        return `<button class="item" data-act="mpOut" data-id="${o.pid}">${posPill(o.slot)}<div class="grow"><div class="name ellipsis">${esc(p.name)} ${o.injured ? '🚑' : ''}</div><div class="sub">Maç puanı ${(m.rt[o.pid] || 6).toFixed(1)}</div></div>${ovrPill(p.ovr)}</button>`;
+      }).join('')}</div>`);
+    return;
+  }
+  const out = side.onPitch.find((o) => o.pid === outPid);
+  if (!out) return toast('Oyuncu artık sahada değil.');
+  const bench = side.bench.filter((id) => !side.used.has(id)).map(P).filter(Boolean);
+  openModal(`${sheetHead(`${esc(P(outPid).name)} yerine`)}
+    <div class="list">${bench.map((p) => `<button class="item" data-act="mpIn" data-out="${outPid}" data-id="${p.id}">${posPill(p.pos)}<div class="grow"><div class="name ellipsis">${esc(p.name)}</div><div class="sub">${POS_TR[out.slot]} mevkiinde uyum %${Math.round(posFit(p.pos, out.slot) * 100)}</div></div>${ovrPill(p.ovr)}</button>`).join('') || '<div class="muted">Yedek kulübesinde oyuncu yok.</div>'}</div>`);
 }
 
 // ---------- Sezon sonu / kovulma ----------
@@ -1343,6 +1446,7 @@ async function connect(code) {
   live = null;
   pendingTactics = null;
   seenPlayed = null;
+  mpLive = { open: false, fid: null, data: null, autoOpened: null };
   mode = 'mp';
   mp.connecting = true;
   render();
@@ -1353,6 +1457,7 @@ async function connect(code) {
       render();
     },
     onState: (st) => { if (session === s) onMpState(st); },
+    onLive: (d) => { if (session === s) onMpLive(d); },
     toast,
   });
   session = s;
@@ -1468,6 +1573,7 @@ function leaveMp() {
   mp.connecting = false;
   mp.joinInfo = null;
   pendingTactics = null;
+  mpLive = { open: false, fid: null, data: null, autoOpened: null };
   readIds = new Set();
   const saved = loadSave();
   state = saved?.teams?.[saved.userTeamId] ? migrateState(syncStatic(saved)) : null;
@@ -1677,6 +1783,29 @@ const actions = {
     if (!ok) throw new UserError('Lig başlatılamadı.');
   }),
   mpShare: () => shareInvite(),
+  mpLiveOpen: () => openLiveView(),
+  mpLiveClose: () => { mpLive.open = false; render(); },
+  mpLiveSwitch: (d) => { mpLive.fid = d.id; render(); },
+  mpSubs: () => openMpSubs(),
+  mpOut: (d) => openMpSubs(d.id),
+  mpIn: async (d) => {
+    closeModal();
+    toast('Değişiklik gönderildi…', 2000);
+    const r = await session.submit('liveSub', { fid: mpLive.fid, out: d.out, in: d.id }, true);
+    if (r && r.ok === false) toast(r.text || 'Değişiklik yapılamadı.', 3500);
+  },
+  mpMent: (d) => {
+    session.submit('liveMent', { fid: mpLive.fid, mentality: d.v }, false).catch((e) => toast(`Bağlantı hatası: ${e.message}`));
+    toast(`Oyun anlayışı: ${MENTALITIES[d.v].label}`);
+  },
+  mpSkip: async () => {
+    if (!mpLive.data) return;
+    try {
+      await session.voteSkipLive(mpLive.data.id);
+    } catch (e) {
+      toast(`Bağlantı hatası: ${e.message}`);
+    }
+  },
 };
 
 document.addEventListener('click', (e) => {

@@ -1,6 +1,6 @@
 // Çevrimdışı oynanabilmesi için basit service worker.
 // Önce ağdan dener (güncellemeler hemen gelsin), ağ yoksa önbellekten sunar.
-const CACHE = 'slm-v4';
+const CACHE = 'slm-v5';
 const ASSETS = [
   './',
   'index.html',

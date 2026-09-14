@@ -1,11 +1,13 @@
-// Ortak kariyer: lig kurma/katılma, dünya durumunun paylaşılması ve işlem sırası.
+// Ortak kariyer: lig kurma/katılma, dünya durumunun paylaşılması, işlem sırası ve canlı maçlar.
 //
 // Ligdeki çevrimiçi oyunculardan biri "işleyici" olur: diğerlerinin gönderdiği işlemleri
 // (taktik, teklif, sözleşme...) uygular, herkes hazır olduğunda günleri ilerletir ve yeni dünya
-// durumunu yayınlar. İşleyici uygulamayı kapatırsa kira süresi dolar ve çevrimiçi başka bir oyuncu
-// otomatik olarak devralır; böylece lig kurucusunun sürekli açık olması gerekmez.
+// durumunu yayınlar. İnsan takımlarının maçları işleyicide dakika dakika oynatılır ve herkes aynı
+// anda izler. İşleyici uygulamayı kapatırsa kira süresi dolar ve çevrimiçi başka bir oyuncu
+// (canlı maç dahil) kaldığı yerden devralır.
 import { FIREBASE_CONFIG } from './config.js';
-import { newMultiplayerGame, advanceMultiplayer, migrateState, addHuman } from '../engine/game.js';
+import { newMultiplayerGame, advanceMultiplayer, migrateState, addHuman, applyHumanMatch } from '../engine/game.js';
+import { Match } from '../engine/match.js';
 import { seedRng, getRngState } from '../engine/util.js';
 import { FORMATIONS, MENTALITIES } from '../engine/tactics.js';
 import { makeBid, proposeContract, cancelNegotiation, respondIncoming, respondCounter } from '../engine/transfers.js';
@@ -14,6 +16,7 @@ export class UserError extends Error {}
 
 export const MAX_MEMBERS = 8;
 const LEASE_MS = 20000;
+const LIVE_TICK_MS = 1500;
 const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 // --- Sunucu seçimi ---
@@ -156,7 +159,7 @@ export async function startLeague(net, code) {
   return !!ok;
 }
 
-// --- İşlemler ---
+// --- Dünya işlemleri ---
 export function applyAction(state, league, a) {
   const member = league.members?.[a.uid];
   if (!member || member.teamId !== a.teamId || !state.teams[a.teamId]) return { ok: false, text: 'Bu işlem için yetkin yok.' };
@@ -215,6 +218,8 @@ export class OnlineSession {
     this.pending = [];
     this.applied = new Set();
     this.wasProcessor = false;
+    this.live = null;
+    this.liveTimer = null;
   }
 
   get uid() { return this.net.uid; }
@@ -237,6 +242,9 @@ export class OnlineSession {
         }
       });
     });
+    this.unLive = this.net.watchLive(this.code, (d) => {
+      if (!this.stopped) this.hooks.onLive?.(d);
+    });
     this.timer = setInterval(() => this.tick(), 5000);
     this.tick();
   }
@@ -245,7 +253,9 @@ export class OnlineSession {
     this.stopped = true;
     this.unLeague?.();
     this.unActions?.();
+    this.unLive?.();
     clearInterval(this.timer);
+    this.stopLiveLoop();
   }
 
   onLeague(lg) {
@@ -255,6 +265,8 @@ export class OnlineSession {
       this.wasProcessor = false;
       this.unActions?.();
       this.unActions = null;
+      this.stopLiveLoop();
+      this.live = null;
     }
     if (lg?.status === 'active' && lg.rev !== this.rev && !this.isProcessor()) this.pull();
     this.hooks.onLeague?.(lg);
@@ -317,6 +329,7 @@ export class OnlineSession {
           this.schedulePump();
         });
       }
+      if (this.state?.mpLive && !this.live) await this.resumeLive();
       this.schedulePump();
     } catch (e) {
       console.warn('işleyici kirası alınamadı', e);
@@ -366,14 +379,20 @@ export class OnlineSession {
       const actions = this.pending.filter((a) => a.status === 'pending' && !this.applied.has(a.id)).sort((a, b) => (a.ts || 0) - (b.ts || 0));
       for (const a of actions) {
         this.applied.add(a.id);
+        if (a.type === 'liveSub' || a.type === 'liveMent') {
+          const res = clean(this.applyLiveAction(a));
+          this.net.updateAction(this.code, a.id, { status: 'done', result: res, doneAt: Date.now() }).catch(() => {});
+          continue;
+        }
         results.push([a, clean(applyAction(s, this.league, a))]);
         changed = true;
       }
 
       let stop = null;
       const members = Object.values(this.league.members);
-      if (members.length && members.every((m) => m.ready)) {
+      if (!s.mpLive && members.length && members.every((m) => m.ready)) {
         stop = advanceMultiplayer(s);
+        if (stop.reason === 'live') this.prepareLive(stop);
         changed = true;
       }
       if (changed) await this.publish(results, stop);
@@ -397,12 +416,20 @@ export class OnlineSession {
     const patch = { rev, snapParts: parts, date: s.date, season: s.season, updatedAt: Date.now() };
     if (stop) {
       patch.stop = { reason: stop.reason, date: stop.date };
-      for (const u of Object.keys(this.league.members)) patch[`members.${u}.ready`] = false;
+      // Canlı maç sırasında hazır bayrakları korunur: maçlar bitince gün kendiliğinden ilerler.
+      if (stop.reason !== 'live') {
+        for (const u of Object.keys(this.league.members)) {
+          patch[`members.${u}.ready`] = false;
+          patch[`members.${u}.skipLive`] = null;
+        }
+      }
     }
     const ok = await this.net.transactLeague(this.code, (lg) => (lg && lg.processor?.uid === this.uid && (lg.rev || 0) === rev - 1 ? patch : null));
     if (!ok) {
       this.net.deleteSnapshot(this.code, rev, parts).catch(() => {});
       for (const [a] of results) this.applied.delete(a.id);
+      this.stopLiveLoop();
+      this.live = null;
       this.rev = -1;
       this.league = await this.net.getLeague(this.code);
       await this.pull();
@@ -419,11 +446,144 @@ export class OnlineSession {
     s.userTeamId = this.myTeamId();
     this.hooks.onState?.(s);
     this.hooks.onLeague?.(this.league);
+
+    if (this.live && s.mpLive?.id === this.live.id && !this.liveTimer) {
+      await this.writeLive(false);
+      this.startLiveLoop();
+    }
+  }
+
+  // --- Canlı maçlar (yalnızca işleyicide çalışır) ---
+  prepareLive(stop) {
+    const s = this.state;
+    seedRng(s.rng);
+    const matches = stop.fixtures
+      .map((fid) => s.fixtures.find((f) => f.id === fid))
+      .filter((f) => f && !f.played)
+      .map((fx) => new Match(s, fx, { autoUser: true }));
+    s.rng = getRngState();
+    const id = `L${s.season}_${s.date}_${Date.now().toString(36)}`;
+    s.mpLive = { id, date: s.date, fixtures: matches.map((m) => m.fx.id) };
+    this.live = { id, matches, doneTicks: 0 };
+  }
+
+  async resumeLive() {
+    const s = this.state;
+    const d = await this.net.getLive(this.code).catch(() => null);
+    if (d && d.id === s.mpLive.id) {
+      const matches = (d.matches || []).map((snap) => Match.restore(s, snap)).filter(Boolean);
+      this.live = { id: d.id, matches, doneTicks: d.finished ? 3 : 0 };
+    } else {
+      // Canlı veri kaybolduysa maçları baştan oynat.
+      seedRng(s.rng);
+      const matches = s.mpLive.fixtures
+        .map((fid) => s.fixtures.find((f) => f.id === fid))
+        .filter((f) => f && !f.played)
+        .map((fx) => new Match(s, fx, { autoUser: true }));
+      s.rng = getRngState();
+      this.live = { id: s.mpLive.id, matches, doneTicks: 0 };
+    }
+    this.startLiveLoop();
+  }
+
+  startLiveLoop() {
+    this.stopLiveLoop();
+    this.liveTimer = setInterval(() => this.liveTick(), LIVE_TICK_MS);
+  }
+
+  stopLiveLoop() {
+    clearInterval(this.liveTimer);
+    this.liveTimer = null;
+  }
+
+  async liveTick() {
+    if (!this.live || !this.isProcessor()) {
+      this.stopLiveLoop();
+      return;
+    }
+    if (this.liveBusy) return;
+    this.liveBusy = true;
+    try {
+      const live = this.live;
+      const members = Object.values(this.league.members);
+      const skip = members.length > 0 && members.every((m) => m.skipLive === live.id);
+      let active = false;
+      for (const m of live.matches) {
+        if (m.finished) continue;
+        if (skip) m.playToEnd();
+        else m.step();
+        active = true;
+      }
+      if (!active) live.doneTicks++;
+      const done = !active && (live.doneTicks >= 3 || skip);
+      await this.writeLive(done);
+      if (done) await this.finishLive();
+    } catch (e) {
+      console.warn('canlı maç hatası', e);
+    } finally {
+      this.liveBusy = false;
+    }
+  }
+
+  async writeLive(finished) {
+    const live = this.live;
+    if (!live) return;
+    await this.net.putLive(this.code, clean({
+      id: live.id,
+      date: this.state.date,
+      finished: !!finished,
+      updatedAt: Date.now(),
+      matches: live.matches.map((m) => m.snapshot()),
+    }));
+  }
+
+  async finishLive() {
+    const s = this.state;
+    const live = this.live;
+    this.stopLiveLoop();
+    for (const m of live.matches) {
+      if (!m.finished) m.playToEnd();
+      if (m.fx.played) continue;
+      applyHumanMatch(s, m.fx, m.apply());
+    }
+    s.rng = getRngState();
+    s.mpLive = null;
+    this.live = null;
+    const stop = advanceMultiplayer(s);
+    if (stop.reason === 'live') this.prepareLive(stop);
+    await this.publish([], stop);
+  }
+
+  applyLiveAction(a) {
+    const live = this.live;
+    const member = this.league.members?.[a.uid];
+    if (!live || !member) return { ok: false, text: 'Şu an canlı maç yok.' };
+    const p = a.payload || {};
+    const m = live.matches.find((x) => x.fx.id === p.fid);
+    if (!m || m.finished) return { ok: false, text: 'Maç bitti.' };
+    const side = m.sides.findIndex((sd) => sd.teamId === member.teamId);
+    if (side < 0) return { ok: false, text: 'Bu maçta takımın yok.' };
+    m.fresh = [];
+    if (a.type === 'liveSub') {
+      const ok = m.substitute(side, p.out, p.in);
+      if (ok) m.sides[side].manual = true;
+      return ok ? { ok: true } : { ok: false, text: 'Değişiklik yapılamadı.' };
+    }
+    if (MENTALITIES[p.mentality]) {
+      m.setMentality(side, p.mentality);
+      m.sides[side].manual = true;
+      return { ok: true };
+    }
+    return { ok: false, text: 'Geçersiz oyun anlayışı.' };
   }
 
   async setReady(ready) {
     await this.net.updateLeague(this.code, { [`members.${this.uid}.ready`]: ready });
     this.tick();
+  }
+
+  async voteSkipLive(liveId) {
+    await this.net.updateLeague(this.code, { [`members.${this.uid}.skipLive`]: liveId });
   }
 
   // İşlemi sıraya koyar; wait ise işleyicinin sonucunu bekler.

@@ -127,6 +127,7 @@ export class Match {
       subsLeft: 5,
       mentality: team.mentality || 'balanced',
       norm: formationNorm(team.formation),
+      manual: false,
     };
   }
 
@@ -351,6 +352,7 @@ export class Match {
       return;
     }
     if (i === this.userSide && !this.autoUser) return;
+    if (side.manual) return;
     if (this.half !== 2 || this.minute < 58 || !chance(0.09)) return;
     const tired = side.onPitch
       .filter((o) => o.slot !== 'GK' && this.P[o.pid].condition < 72)

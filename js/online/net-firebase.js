@@ -94,6 +94,16 @@ export async function createFirebaseNet(config) {
     watchAction(code, id, cb) {
       return F.onSnapshot(F.doc(actionsCol(code), id), (s) => cb(s.exists() ? { ...s.data(), id } : null), () => cb(null));
     },
+    async putLive(code, data) {
+      await F.setDoc(F.doc(db, 'leagues', code, 'live', 'current'), data);
+    },
+    async getLive(code) {
+      const s = await F.getDoc(F.doc(db, 'leagues', code, 'live', 'current'));
+      return s.exists() ? s.data() : null;
+    },
+    watchLive(code, cb) {
+      return F.onSnapshot(F.doc(db, 'leagues', code, 'live', 'current'), (s) => cb(s.exists() ? s.data() : null), (e) => console.warn('canlı maç dinleme hatası', e));
+    },
     async pruneActions(code, before) {
       const s = await F.getDocs(F.query(actionsCol(code), F.where('status', '==', 'done')));
       const batch = F.writeBatch(db);

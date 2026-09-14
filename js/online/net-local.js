@@ -120,6 +120,9 @@ export async function createLocalNet() {
       });
     },
     watchAction(code, id, cb) { return watch((k) => k === A(code, id), () => cb(read(A(code, id)))); },
+    async putLive(code, data) { write(`live:${code}`, data); },
+    async getLive(code) { return read(`live:${code}`); },
+    watchLive(code, cb) { return watch((k) => k === `live:${code}`, () => cb(read(`live:${code}`))); },
     async pruneActions(code, before) {
       return lock(() => {
         const idx = read(`actions:${code}`) || [];

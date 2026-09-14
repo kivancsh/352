@@ -288,9 +288,10 @@ export function advanceMultiplayer(state) {
         }
       }
       if (i > 0 && daysBetween(startDate, state.date) >= 7) return setStop('week');
-      for (const f of hfx) {
-        const result = simulateMatch(state, f);
-        humanMatchEffects(state, f, result);
+      if (hfx.length) {
+        // Maçlar işleyici tarafından canlı oynatılır; sonuçlar bitince uygulanır.
+        if (state.mp?.liveMatches !== false) return setStop('live', { fixtures: hfx.map((f) => f.id) });
+        for (const f of hfx) humanMatchEffects(state, f, simulateMatch(state, f));
       }
       playOtherMatchesToday(state);
       endOfDay(state);
@@ -683,4 +684,4 @@ export function startNewSeason(state) {
   state.rng = getRngState();
 }
 
-export { currentWindow };
+export { currentWindow, humanMatchEffects as applyHumanMatch };

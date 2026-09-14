@@ -38,6 +38,10 @@ service cloud.firestore {
         allow read, write: if isMember(code);
       }
 
+      match /live/{liveId} {
+        allow read, write: if isMember(code);
+      }
+
       match /actions/{actionId} {
         allow read, update, delete: if isMember(code);
         allow create: if isMember(code) && request.resource.data.uid == request.auth.uid;
