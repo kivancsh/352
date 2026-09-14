@@ -1,6 +1,6 @@
 // Çevrimdışı oynanabilmesi için basit service worker.
 // Önce ağdan dener (güncellemeler hemen gelsin), ağ yoksa önbellekten sunar.
-const CACHE = 'slm-v1';
+const CACHE = 'slm-v2';
 const ASSETS = [
   './',
   'index.html',
@@ -8,6 +8,7 @@ const ASSETS = [
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
+  'icons/apple-touch-icon.png',
   'js/main.js',
   'js/data/teams.js',
   'js/engine/util.js',

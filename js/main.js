@@ -104,6 +104,8 @@ const sheetHead = (title, extra = '') => `<div class="sheet-h">${extra}<h2>${tit
 
 function save() {
   if (!state) return;
+  if (live) state.live = live.m.snapshot();
+  else delete state.live;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
   } catch {
@@ -128,6 +130,27 @@ function withRng(fn) {
   return r;
 }
 
+// ---------- Uygulama olarak kurulum ----------
+let deferredInstall = null;
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function installBanner() {
+  if (isStandalone()) return '';
+  try {
+    if (localStorage.getItem('slm-install-hidden') === '1') return '';
+  } catch { /* yok say */ }
+  let how;
+  if (deferredInstall) how = '<button class="btn primary block" data-act="install">📲 Uygulamayı yükle</button>';
+  else if (isIOS()) how = '<div class="small">Safari\'de alttaki <b>Paylaş</b> düğmesine (kareden çıkan ok), ardından <b>Ana Ekrana Ekle</b>\'ye dokun.</div>';
+  else how = '<div class="small">Tarayıcı menüsünden (⋮) <b>Ana ekrana ekle</b> ya da <b>Uygulamayı yükle</b> seçeneğine dokun.</div>';
+  return `<section class="card install">
+    <div class="row-flex"><span style="font-size:26px">📲</span><div class="grow"><b>Uygulama olarak kur</b><div class="muted small">Ana ekrandaki simgeden tam ekran açılır ve her seferinde kaldığın yerden devam eder.</div></div><button class="x" data-act="hideInstall" aria-label="Gizle">✕</button></div>
+    <div class="spacer"></div>${how}
+    ${isIOS() ? '<div class="muted small" style="margin-top:8px">Önemli: iPhone\'da Safari\'deki kayıt ana ekran uygulamasına taşınmaz. Önce ana ekrana ekle, kariyerine oradan başla.</div>' : ''}
+  </section>`;
+}
+
 // ---------- Ana render ----------
 function render() {
   if (!state) return renderStart();
@@ -138,7 +161,7 @@ function render() {
   const t = me();
   const unread = state.inbox.filter((m) => !m.read || (m.needsAction && !m.resolved)).length;
   let body = '';
-  if (view.tab === 'home') body = homeHtml();
+  if (view.tab === 'home') body = installBanner() + homeHtml();
   else if (view.tab === 'squad') body = squadHtml();
   else if (view.tab === 'league') body = leagueHtml();
   else if (view.tab === 'transfer') body = transferHtml();
@@ -186,6 +209,7 @@ function renderStart() {
           <h1>Süper Lig Menajer</h1>
           <p>2026-27 Trendyol Süper Lig · Gerçek takımlar ve kadrolar</p>
         </div>
+        ${installBanner()}
         ${saved && saved.teams?.[saved.userTeamId] ? `
           <section class="card">
             <div class="card-h">Kayıtlı kariyer</div>
@@ -898,6 +922,10 @@ function schedule() {
     if (!live) return;
     const evs = live.m.step();
     if (evs.some((e) => e.type === 'half')) live.paused = true;
+    if (live.paused || live.m.finished || evs.some((e) => e.type === 'goal') || Date.now() - (live.lastSave || 0) > 4000) {
+      save();
+      live.lastSave = Date.now();
+    }
     renderMatch();
     schedule();
   }, delay);
@@ -908,10 +936,10 @@ function finishLive() {
   clearTimeout(live.timer);
   const result = m.apply();
   state.rng = getRngState();
+  live = null;
   onUserMatchPlayed(state, m.fx, result);
   save();
   const fid = m.fx.id;
-  live = null;
   render();
   openReport(fid);
 }
@@ -1116,7 +1144,7 @@ const actions = {
   },
   live: (d) => startLive(d.id),
   quick: (d) => quickMatch(d.id),
-  mPause: () => { live.paused = !live.paused; renderMatch(); schedule(); },
+  mPause: () => { live.paused = !live.paused; save(); renderMatch(); schedule(); },
   mSpeed: (d) => { live.speed = Number(d.v); live.paused = false; renderMatch(); schedule(); },
   mSubs: () => openSubs(),
   mOut: (d) => openSubs(d.id),
@@ -1124,10 +1152,11 @@ const actions = {
     const ok = live.m.substitute(live.m.userSide, d.out, d.id);
     closeModal();
     if (!ok) toast('Değişiklik yapılamadı.');
+    save();
     renderMatch();
   },
-  mMent: (d) => { live.m.setMentality(live.m.userSide, d.v); renderMatch(); },
-  mSkip: () => { clearTimeout(live.timer); live.m.playToEnd(); renderMatch(); },
+  mMent: (d) => { live.m.setMentality(live.m.userSide, d.v); save(); renderMatch(); },
+  mSkip: () => { clearTimeout(live.timer); live.m.playToEnd(); save(); renderMatch(); },
   mFinish: () => finishLive(),
   newSeason: () => {
     startNewSeason(state);
@@ -1138,6 +1167,17 @@ const actions = {
     toast('Yeni sezon başladı! Transfer dönemi açık.');
   },
   gameOverScreen: () => { view.seenSummary = true; render(); },
+  install: async () => {
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    try { await deferredInstall.userChoice; } catch { /* yok say */ }
+    deferredInstall = null;
+    render();
+  },
+  hideInstall: () => {
+    try { localStorage.setItem('slm-install-hidden', '1'); } catch { /* yok say */ }
+    render();
+  },
   confirmNew: () => openModal(`${sheetHead('Yeni kariyer')}<p>Mevcut kariyeriniz silinecek. Emin misiniz?</p><div class="btns"><button class="btn" data-act="close">Vazgeç</button><button class="btn danger" data-act="newCareer">Evet, sil</button></div>`),
   newCareer: () => {
     try { localStorage.removeItem(SAVE_KEY); } catch { /* yok say */ }
@@ -1187,8 +1227,50 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !$modal.hidden) closeModal();
 });
 
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstall = e;
+  if (!live) render();
+});
+window.addEventListener('appinstalled', () => {
+  deferredInstall = null;
+  toast('Oyun ana ekrana eklendi!');
+  if (!live) render();
+});
+
+// Uygulama arka plana atılınca ya da kapatılınca anında kaydet; canlı maçı duraklat.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    if (live) {
+      live.paused = true;
+      clearTimeout(live.timer);
+    }
+    save();
+  } else if (live) {
+    renderMatch();
+  }
+});
+window.addEventListener('pagehide', () => save());
+
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
-render();
+// Açılışta kayıt varsa başlangıç ekranını atlayıp doğrudan oyuna gir.
+function boot() {
+  const saved = loadSave();
+  if (saved && saved.teams?.[saved.userTeamId]) {
+    state = saved;
+    if (state.live) {
+      seedRng(state.rng);
+      const m = Match.restore(state, state.live);
+      if (m) live = { m, speed: 1, paused: true, timer: null };
+      else delete state.live;
+    }
+  }
+  if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
+  render();
+  if (live) toast('Maç kaldığın dakikada duraklatıldı. Devam etmek için ▶ düğmesine dokun.', 4000);
+}
+
+boot();

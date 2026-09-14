@@ -103,6 +103,7 @@ export class Match {
     this.rt = {};
     this.played = {};
     this.tally = {};
+    this.fresh = [];
     this.sides.forEach((side, i) => {
       for (const o of side.onPitch) this.enter(o.pid, i, 0, true);
     });
@@ -383,6 +384,40 @@ export class Match {
 
   setMentality(i, mentality) {
     this.sides[i].mentality = mentality;
+  }
+
+  // Canlı maç yarıda kalırsa kaldığı dakikadan sürdürülebilmesi için düz nesneye çevirir.
+  snapshot() {
+    return {
+      fxId: this.fx.id,
+      userSide: this.userSide,
+      autoUser: this.autoUser,
+      suspendedBefore: this.suspendedBefore,
+      sides: this.sides.map((s) => ({ ...s, used: [...s.used] })),
+      minute: this.minute,
+      half: this.half,
+      added: this.added,
+      score: this.score,
+      events: this.events,
+      stats: this.stats,
+      finished: this.finished,
+      rt: this.rt,
+      played: this.played,
+      tally: this.tally,
+    };
+  }
+
+  static restore(state, snap) {
+    const fx = state.fixtures.find((f) => f.id === snap.fxId);
+    if (!fx || fx.played) return null;
+    const m = Object.create(Match.prototype);
+    Object.assign(m, JSON.parse(JSON.stringify(snap)));
+    m.state = state;
+    m.P = state.players;
+    m.fx = fx;
+    m.fresh = [];
+    m.sides.forEach((s) => { s.used = new Set(s.used); });
+    return m;
   }
 
   playToEnd() {

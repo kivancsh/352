@@ -23,10 +23,23 @@
 - **Sezon sonu:** Şampiyon, gol kralı, asist kralı ve sezonun oyuncusu belirlenir. Ardından yeni sezon başlar: sözleşmeler biter, oyuncular yaşlanır ya da emekli olur, altyapıdan gençler gelir.
 - **Kayıt:** Oyun her adımda telefonundaki tarayıcıya otomatik kaydedilir.
 
-## Telefonda uygulama gibi kullanmak
+## Telefonda uygulama olarak kurmak
 
-- **iPhone (Safari):** Paylaş → *Ana Ekrana Ekle*
-- **Android (Chrome):** ⋮ menüsü → *Ana ekrana ekle* / *Uygulamayı yükle*
+Oyunun tek ve sabit bir adresi var: **https://kivancsh.github.io/super-lig-menajer/**
+
+1. Linki telefonda aç.
+2. **iPhone (Safari):** Paylaş düğmesi → *Ana Ekrana Ekle*
+   **Android (Chrome):** Oyundaki *Uygulamayı yükle* düğmesi ya da ⋮ menüsü → *Ana ekrana ekle*
+3. Bundan sonra oyunu ana ekrandaki **SL Menajer** simgesinden aç. Tam ekran, adres çubuğu olmadan açılır.
+
+Kayıt ve devam etme:
+
+- Ayrı bir kaydetme düğmesi yok. Oyun her adımda ve uygulamadan çıkıldığı anda otomatik kaydedilir.
+- Simgeye her dokunuşta oyun doğrudan kaldığın yerden açılır.
+- Canlı maçın ortasında çıkarsan maç aynı dakikada duraklatılmış olarak seni bekler.
+- Kayıt yalnızca o telefonda tutulur.
+- **iPhone'da** Safari'deki kayıt ile ana ekran uygulamasının kaydı birbirinden ayrıdır. Önce ana ekrana ekle, kariyerine oradan başla.
+- Uygulama güncellemeleri bir sonraki açılışta kendiliğinden gelir.
 
 ## Veri hakkında
 
