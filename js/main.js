@@ -1,7 +1,7 @@
-// Arayüz: ekranlar, modallar, canlı maç ve kayıt.
+// Arayüz: ekranlar, modallar, canlı maç, kayıt ve ortak kariyer.
 import { TEAMS } from './data/teams.js';
 import {
-  newGame, continueGame, standings, nextUserFixture, onUserMatchPlayed, startNewSeason, currentWindow,
+  newGame, continueGame, standings, nextUserFixture, onUserMatchPlayed, startNewSeason, currentWindow, migrateState,
 } from './engine/game.js';
 import { Match, squadOf, prepareLineup } from './engine/match.js';
 import { FORMATIONS, MENTALITIES, autoPick, teamRating } from './engine/tactics.js';
@@ -11,9 +11,14 @@ import {
 import {
   makeBid, proposeContract, contractDemand, respondIncoming, respondCounter, cancelNegotiation, playerRole, ROLE_TR,
 } from './engine/transfers.js';
+import { isHuman } from './engine/inbox.js';
 import { fmtDate, fmtMoney, daysBetween, seedRng, getRngState, roundMoney } from './engine/util.js';
+import {
+  OnlineSession, getNet, onlineAvailable, createLeague, joinLeague, setMemberTeam, startLeague, leagueLink, UserError, MAX_MEMBERS,
+} from './online/online.js';
 
 const SAVE_KEY = 'slm-save-v1';
+const ONLINE_KEY = 'slm-online';
 const $app = document.getElementById('app');
 const $modal = document.getElementById('modal');
 const $toast = document.getElementById('toast');
@@ -32,11 +37,25 @@ const view = {
   tf: { pos: '', maxAge: '', minOvr: '', maxVal: '', team: '', q: '' },
 };
 
+// Ortak kariyer
+let mode = 'sp';
+let session = null;
+const mp = { name: '', teamId: null, code: '', joinInfo: null, busy: false, connecting: false };
+let pendingTactics = null;
+let tacticsTimer = null;
+let seenPlayed = null;
+let readIds = new Set();
+
 // ---------- Yardımcılar ----------
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const P = (id) => state.players[id];
 const T = (id) => state.teams[id];
 const me = () => state.teams[state.userTeamId];
+const isMp = () => mode === 'mp';
+const myBoard = () => state.boards?.[state.userTeamId] || { confidence: 65, label: '-', target: 10 };
+const managerName = (teamId = state.userTeamId) => state.managers?.[teamId] || state.manager || 'Teknik Direktör';
+const myInbox = () => state.inbox.filter((m) => !m.teamId || m.teamId === state.userTeamId);
+const isRead = (m) => m.read || readIds.has(m.id);
 
 const FLAG_SPECIAL = {
   EN: '\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}',
@@ -82,7 +101,8 @@ function kitSvg(kit, size = 56) {
     + `<path d="${shirt}" fill="none" stroke="${stroke}" stroke-width="3" stroke-linejoin="round"/>`
     + `<path d="M42 5 Q50 13 58 5" fill="none" stroke="${c2}" stroke-width="4"/></svg>`;
 }
-const teamKit = (teamId, size) => kitSvg(T(teamId)?.kit || TEAMS.find((t) => t.id === teamId)?.kit, size);
+const teamKit = (teamId, size) => kitSvg((state && T(teamId)?.kit) || TEAMS.find((t) => t.id === teamId)?.kit, size);
+const teamNameStatic = (teamId) => TEAMS.find((t) => t.id === teamId)?.name || '';
 
 const ovrCls = (o) => (o >= 80 ? 'r-elite' : o >= 74 ? 'r-good' : o >= 66 ? 'r-mid' : 'r-low');
 const ovrPill = (o) => `<span class="ovr ${ovrCls(o)}">${o}</span>`;
@@ -123,7 +143,7 @@ function closeModal() {
 const sheetHead = (title, extra = '') => `<div class="sheet-h">${extra}<h2>${title}</h2><button class="x" data-act="close" aria-label="Kapat">✕</button></div>`;
 
 function save() {
-  if (!state) return;
+  if (!state || isMp()) return;
   if (live) state.live = live.m.snapshot();
   else delete state.live;
   try {
@@ -163,6 +183,38 @@ function loadSave() {
   }
 }
 
+function onlineStore() {
+  try {
+    return JSON.parse(localStorage.getItem(ONLINE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+function setOnlineStore(patch) {
+  try {
+    localStorage.setItem(ONLINE_KEY, JSON.stringify({ ...onlineStore(), ...patch }));
+  } catch { /* yok say */ }
+}
+
+function loadRead(code) {
+  try {
+    readIds = new Set(JSON.parse(localStorage.getItem(`slm-read-${code}`) || '[]'));
+  } catch {
+    readIds = new Set();
+  }
+}
+function markRead(m) {
+  if (isMp()) {
+    readIds.add(m.id);
+    try {
+      localStorage.setItem(`slm-read-${session.code}`, JSON.stringify([...readIds].slice(-800)));
+    } catch { /* yok say */ }
+  } else {
+    m.read = true;
+    save();
+  }
+}
+
 // Motorun rastgele sayı üretecini kayıtlı durumla eşleyerek çalıştırır.
 function withRng(fn) {
   seedRng(state.rng);
@@ -195,15 +247,39 @@ function installBanner() {
 
 // ---------- Ana render ----------
 function render() {
+  if (isMp()) return renderMp();
   if (!state) return renderStart();
   if (live) return renderMatch();
   if (state.gameOver) return renderGameOver();
   if (state.phase === 'seasonEnd' && state.seasonSummary) return renderSeasonEnd();
+  return renderGame();
+}
 
+function renderMp() {
+  if (mp.connecting) return renderConnecting();
+  if (!session) return renderOnlineMenu();
+  const lg = session.league;
+  if (lg === undefined) return renderConnecting();
+  if (!lg) return renderOnlineMenu();
+  if (lg.status === 'lobby') return renderLobby();
+  if (!state) return renderConnecting('Lig verisi indiriliyor…');
+  if (state.phase === 'seasonEnd' && state.seasonSummary) return renderSeasonEnd();
+  return renderGame();
+}
+
+function readyButton() {
+  const lg = session.league;
+  const members = Object.values(lg.members);
+  const n = members.filter((m) => m.ready).length;
+  const mine = lg.members[session.uid];
+  return `<button class="btn-continue ${mine?.ready ? 'ready' : ''}" data-act="ready">${mine?.ready ? 'Hazır ✓' : 'Hazırım ▶'} <small>${n}/${members.length}</small></button>`;
+}
+
+function renderGame() {
   const t = me();
-  const unread = state.inbox.filter((m) => !m.read || (m.needsAction && !m.resolved)).length;
+  const unread = myInbox().filter((m) => !isRead(m) || (m.needsAction && !m.resolved)).length;
   let body = '';
-  if (view.tab === 'home') body = installBanner() + homeHtml();
+  if (view.tab === 'home') body = (isMp() ? onlineCard() : '') + installBanner() + homeHtml();
   else if (view.tab === 'squad') body = squadHtml();
   else if (view.tab === 'league') body = leagueHtml();
   else if (view.tab === 'transfer') body = transferHtml();
@@ -220,7 +296,7 @@ function render() {
           <div class="top-team">${esc(t.name)}</div>
           <div class="top-sub">${fmtDate(state.date, true)} · <b>${fmtMoney(t.finance.balance)}</b></div>
         </div>
-        <button class="btn-continue" data-act="continue">Devam ▶</button>
+        ${isMp() ? readyButton() : '<button class="btn-continue" data-act="continue">Devam ▶</button>'}
       </header>
       <main>${body}</main>
       <nav class="nav"><div class="nav-inner">
@@ -242,7 +318,8 @@ function teamStrengthFromData(t) {
 function renderStart() {
   const saved = loadSave();
   const teams = TEAMS.slice().sort((a, b) => b.rep - a.rep);
-  const stars = (rep) => '★'.repeat(Math.max(1, Math.round((rep - 40) / 10))) ;
+  const stars = (rep) => '★'.repeat(Math.max(1, Math.round((rep - 40) / 10)));
+  const savedTeam = saved?.teams?.[saved.userTeamId];
   $app.innerHTML = `
     <div class="shell" style="padding-bottom:0">
       <main>
@@ -252,20 +329,24 @@ function renderStart() {
           <p>2026-27 Trendyol Süper Lig · Gerçek takımlar ve kadrolar</p>
         </div>
         ${installBanner()}
-        ${saved && saved.teams?.[saved.userTeamId] ? `
+        ${savedTeam ? `
           <section class="card">
             <div class="card-h">Kayıtlı kariyer</div>
             <div class="row-flex">
-              <span class="badge lg" style="background:${saved.teams[saved.userTeamId].colors[0]};color:${saved.teams[saved.userTeamId].colors[1]};border-color:${saved.teams[saved.userTeamId].colors[1]}">${esc(saved.teams[saved.userTeamId].short)}</span>
+              ${kitSvg(savedTeam.kit || TEAMS.find((t) => t.id === savedTeam.id)?.kit, 48)}
               <div class="grow">
-                <div style="font-weight:700">${esc(saved.manager)} · ${esc(saved.teams[saved.userTeamId].name)}</div>
+                <div style="font-weight:700">${esc(saved.managers?.[saved.userTeamId] || saved.manager)} · ${esc(savedTeam.name)}</div>
                 <div class="muted small">${fmtDate(saved.date)} · ${seasonLabel(saved.season)} sezonu</div>
               </div>
             </div>
             <button class="btn primary block" data-act="resume">Kaldığın yerden devam et</button>
           </section>` : ''}
+        <section class="card online">
+          <div class="row-flex"><span style="font-size:26px">👥</span><div class="grow"><b>Arkadaşlarınla ortak kariyer</b><div class="muted small">Aynı ligde her biriniz bir takımı yönetir, birbirinize transfer teklifi yaparsınız.</div></div></div>
+          <button class="btn block" data-act="mpOpen">Arkadaşlarla oyna</button>
+        </section>
         <section class="card">
-          <div class="card-h">${saved ? 'Yeni kariyer' : 'Kariyerine başla'}</div>
+          <div class="card-h">${saved ? 'Yeni tek oyunculu kariyer' : 'Tek oyunculu kariyer'}</div>
           <label class="lbl" for="mgr">Teknik direktör adın</label>
           <input id="mgr" class="inp" maxlength="30" placeholder="Adınızı yazın" value="${esc(pendingStart.manager)}" data-input="manager">
           <div class="spacer"></div>
@@ -286,7 +367,7 @@ function renderStart() {
           </div>
         </section>
         <div class="start-bar">
-          <button class="btn primary block" data-act="startGame" ${pendingStart.teamId ? '' : 'disabled'}>${pendingStart.teamId ? `${esc(TEAMS.find((t) => t.id === pendingStart.teamId).name)} ile kariyere başla` : 'Önce bir takım seç'}</button>
+          <button class="btn primary block" data-act="startGame" ${pendingStart.teamId ? '' : 'disabled'}>${pendingStart.teamId ? `${esc(teamNameStatic(pendingStart.teamId))} ile kariyere başla` : 'Önce bir takım seç'}</button>
         </div>
         <p class="footer-note">
           Kadrolar Eylül 2026 itibarıyla kamuya açık kaynaklardan derlenmiştir. Oyuncu güç değerleri bu oyuna özel tahminlerdir.<br>
@@ -294,6 +375,111 @@ function renderStart() {
         </p>
       </main>
     </div>`;
+}
+
+// ---------- Ortak kariyer ekranları ----------
+function renderConnecting(text = 'Lige bağlanılıyor…') {
+  $app.innerHTML = `<div class="shell" style="padding-bottom:0"><main>
+    <div class="hero"><div class="ball">👥</div><h1>Ortak Kariyer</h1><p><span class="spin"></span> ${esc(text)}</p></div>
+    <button class="btn ghost block" data-act="mpBack">← Vazgeç</button>
+  </main></div>`;
+}
+
+function teamPicker(action, selected, taken, kitSize = 36) {
+  return `<div class="team-pick">${TEAMS.slice().sort((a, b) => b.rep - a.rep).map((t) => {
+    const who = taken.get(t.id);
+    return `<button class="team-card ${selected === t.id ? 'on' : ''}" data-act="${action}" data-id="${t.id}" ${who ? 'disabled' : ''}>
+      ${kitSvg(t.kit, kitSize)}
+      <div class="grow"><b>${esc(t.name)}</b><div class="muted small">${who ? `${esc(who)} seçti` : esc(t.city)}</div></div>
+      ${ovrPill(teamStrengthFromData(t))}
+    </button>`;
+  }).join('')}</div>`;
+}
+
+function renderOnlineMenu() {
+  const store = onlineStore();
+  if (!mp.name) mp.name = store.name || '';
+  const avail = onlineAvailable();
+  const taken = new Map(Object.values(mp.joinInfo?.members || {}).map((m) => [m.teamId, m.name]));
+  const leagues = store.leagues || [];
+  $app.innerHTML = `<div class="shell" style="padding-bottom:0"><main>
+    <div class="hero"><div class="ball">👥</div><h1>Ortak Kariyer</h1><p>Aynı ligde arkadaşlarınla teknik direktörlük</p></div>
+    ${!avail ? '<section class="card"><div class="note bad small">Çevrimiçi mod henüz ayarlanmadı. Birazdan tekrar dene.</div></section>' : ''}
+    ${leagues.length ? `<section class="card"><div class="card-h">Liglerim</div><div class="list">${leagues.map((l) => `
+      <button class="item" data-act="mpResume" data-code="${esc(l.code)}">${kitSvg(TEAMS.find((t) => t.id === l.teamId)?.kit, 32)}
+        <div class="grow"><b>${esc(l.code)}</b><div class="sub">${esc(teamNameStatic(l.teamId))}</div></div><span class="tag ok">Aç</span></button>`).join('')}</div></section>` : ''}
+    <section class="card">
+      <div class="card-h">Nasıl çalışır?</div>
+      <div class="small muted">Biri lig kurar ve kodu paylaşır, diğerleri kodla katılır. Herkes kendi takımını yönetir; herkes "Hazırım" dediğinde oyun bir sonraki maç haftasına ilerler. Maçlar, her teknik direktörün ayarladığı kadro ve taktikle oynanır.</div>
+    </section>
+    <section class="card">
+      <label class="lbl" for="mpName">Teknik direktör adın</label>
+      <input id="mpName" class="inp" maxlength="24" placeholder="Adını yaz" value="${esc(mp.name)}" data-input="mpName">
+      <div class="spacer"></div>
+      <label class="lbl" for="mpCode">Katılacağın ligin kodu <span class="muted">(lig kuracaksan boş bırak)</span></label>
+      <input id="mpCode" class="inp code" maxlength="6" placeholder="ABC123" value="${esc(mp.code)}" data-input="mpCode" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      ${mp.joinInfo ? `<div class="muted small" style="margin-top:6px">✅ Lig bulundu · ${Object.keys(mp.joinInfo.members).length}/${MAX_MEMBERS} oyuncu${mp.joinInfo.status === 'active' ? ' · lig başlamış, boş bir takımla katılabilirsin' : ''}</div>` : ''}
+      <div class="spacer"></div>
+      <label class="lbl">Takımını seç</label>
+      ${teamPicker('mpPickTeam', mp.teamId, taken)}
+    </section>
+    <div class="start-bar">
+      <div class="btns" style="margin-top:0">
+        <button class="btn primary" data-act="mpJoin" ${!avail || mp.busy || mp.code.length !== 6 ? 'disabled' : ''}>${mp.busy ? '<span class="spin"></span>' : 'Lige katıl'}</button>
+        <button class="btn" data-act="mpCreate" ${!avail || mp.busy ? 'disabled' : ''}>Yeni lig kur</button>
+      </div>
+      <button class="btn ghost block" data-act="mpBack">← Tek oyunculu oyuna dön</button>
+    </div>
+  </main></div>`;
+}
+
+function renderLobby() {
+  const lg = session.league;
+  const isCreator = lg.createdBy === session.uid;
+  const members = Object.entries(lg.members).sort((a, b) => a[1].joinedAt - b[1].joinedAt);
+  const mine = lg.members[session.uid];
+  const taken = new Map(members.filter(([u]) => u !== session.uid).map(([, m]) => [m.teamId, m.name]));
+  $app.innerHTML = `<div class="shell" style="padding-bottom:0"><main>
+    <div class="hero"><div class="ball">🏟️</div><h1>Lig lobisi</h1><p>Arkadaşların katılınca ligi başlat</p></div>
+    <section class="card online">
+      <div class="card-h">Lig kodu</div>
+      <div class="code-big">${esc(lg.code)}</div>
+      <div class="muted small center">Arkadaşların bu kodla ya da davet linkiyle katılabilir.</div>
+      <button class="btn primary block" data-act="mpShare">Davet linkini paylaş</button>
+    </section>
+    <section class="card">
+      <div class="card-h">Oyuncular <span>${members.length}/${MAX_MEMBERS}</span></div>
+      ${members.map(([u, m]) => `<div class="member">${teamKit(m.teamId, 34)}<div class="grow"><b>${esc(m.name)}</b>${u === session.uid ? ' <span class="tag">sen</span>' : ''}${u === lg.createdBy ? ' <span class="tag info">kurucu</span>' : ''}<div class="muted small">${esc(teamNameStatic(m.teamId))}</div></div></div>`).join('')}
+    </section>
+    ${mine ? `<section class="card"><div class="card-h">Takımını değiştir</div>${teamPicker('mpLobbyTeam', mine.teamId, taken, 32)}</section>` : ''}
+    <div class="start-bar">
+      ${isCreator
+        ? `<button class="btn primary block" data-act="mpStart" ${mp.busy ? 'disabled' : ''}>${mp.busy ? '<span class="spin"></span>' : `Ligi başlat (${members.length} oyuncu)`}</button>`
+        : '<div class="note small center">Kurucunun ligi başlatması bekleniyor…</div>'}
+      <button class="btn ghost block" data-act="mpLeave">Lobiden çık</button>
+    </div>
+  </main></div>`;
+}
+
+function onlineCard() {
+  const lg = session.league;
+  const stop = lg.stop;
+  const myTeam = state.userTeamId;
+  const hasMatchThisRound = stop?.reason === 'matchday' && state.fixtures.some((f) => !f.played && f.date >= state.date && (f.home === myTeam || f.away === myTeam) && daysBetween(state.date, f.date) <= 3);
+  let text = 'Herkes "Hazırım" dediğinde oyun bir sonraki durağa kadar ilerler.';
+  if (stop?.reason === 'matchday') text = hasMatchThisRound ? '⚽ Maç haftası! Kadronu ve taktiğini ayarla, sonra Hazırım\'a bas.' : '⚽ Maç haftası. Hazır olduğunda Hazırım\'a bas.';
+  else if (stop?.reason === 'week') text = '📅 Bir hafta geçti. Transferlerini ve kadronu gözden geçir, sonra Hazırım\'a bas.';
+  else if (stop?.reason === 'newSeason') text = '🆕 Yeni sezon başladı, transfer dönemi açık.';
+  const now = Date.now();
+  const processing = lg.processor && lg.processor.until > now;
+  const members = Object.entries(lg.members).sort((a, b) => a[1].joinedAt - b[1].joinedAt);
+  return `<section class="card online">
+    <div class="card-h">Ortak kariyer <span>Kod: <b>${esc(lg.code)}</b></span></div>
+    <div class="small" style="margin-bottom:6px">${text}</div>
+    ${members.map(([u, m]) => `<div class="member">${teamKit(m.teamId, 30)}<div class="grow"><b>${esc(m.name)}</b>${u === session.uid ? ' <span class="tag">sen</span>' : ''}<div class="muted small">${esc(T(m.teamId)?.name || teamNameStatic(m.teamId))}</div></div>${m.ready ? '<span class="tag ok">Hazır</span>' : '<span class="tag warn">Bekleniyor</span>'}</div>`).join('')}
+    ${!processing ? '<div class="muted small" style="margin-top:6px"><span class="spin"></span> Lig işleyicisi aranıyor…</div>' : ''}
+    <button class="btn ghost block" data-act="mpShare">Arkadaş davet et</button>
+  </section>`;
 }
 
 // ---------- Ana sayfa ----------
@@ -309,12 +495,13 @@ function homeHtml() {
   const pos = table.findIndex((r) => r.id === t.id) + 1;
   const row = table[pos - 1];
   const win = currentWindow(state);
-  const board = state.board;
+  const board = myBoard();
   const confCls = board.confidence < 30 ? 'bad' : board.confidence < 55 ? 'warn' : '';
 
   let next = '';
   if (fx) {
     const days = daysBetween(state.date, fx.date);
+    const oppId = fx.home === t.id ? fx.away : fx.home;
     next = `
       <section class="card">
         <div class="card-h">Sıradaki maç <span>${fx.round}. hafta · ${fmtDate(fx.date, true)}</span></div>
@@ -323,8 +510,10 @@ function homeHtml() {
           <div class="vs-mid">${days <= 0 ? 'BUGÜN' : days === 1 ? 'Yarın' : `${days} gün`}<small>${fx.home === t.id ? 'İç saha' : 'Deplasman'}</small></div>
           ${teamCol(fx.away)}
         </div>
-        <div class="muted small center">${esc(T(fx.home).stadium)}</div>
-        <button class="btn primary block" data-act="continue">${days <= 0 ? 'Maç önü' : 'Maç gününe ilerle'}</button>
+        <div class="muted small center">${esc(T(fx.home).stadium)}${isMp() && isHuman(state, oppId) ? ` · Rakip teknik direktör: <b>${esc(managerName(oppId))}</b>` : ''}</div>
+        ${isMp()
+          ? '<button class="btn block" data-act="goTactics">Kadro ve taktiği ayarla</button>'
+          : `<button class="btn primary block" data-act="continue">${days <= 0 ? 'Maç önü' : 'Maç gününe ilerle'}</button>`}
       </section>`;
   }
 
@@ -448,7 +637,7 @@ function tacticsHtml() {
       </div>
       ${unavailableInXI ? `<div class="note bad small">İlk 11'inizde ${unavailableInXI} sakat/cezalı oyuncu var. Maç önünde yerlerine otomatik seçim yapılır.</div><div class="spacer"></div>` : ''}
       <div class="pitch">${pitch}</div>
-      <div class="muted small" style="margin-top:8px">Değiştirmek için bir oyuncuya dokunun. Çerçeve rengi mevki uyumunu gösterir: yeşil iyi, sarı idare eder, kırmızı zayıf.</div>
+      <div class="muted small" style="margin-top:8px">Değiştirmek için bir oyuncuya dokunun. Çerçeve rengi mevki uyumunu gösterir: yeşil iyi, sarı idare eder, kırmızı zayıf.${isMp() ? ' Ortak kariyerde maçlar burada ayarladığın kadro ve taktikle oynanır.' : ''}</div>
       <button class="btn block" data-act="autoPick">Otomatik en iyi 11</button>
     </section>
     <section class="card">
@@ -487,6 +676,32 @@ function openSlotPicker(i, bench = false) {
     </div>`);
 }
 
+// Ortak kariyerde taktik değişiklikleri kısa bir gecikmeyle lige gönderilir.
+function queueTactics() {
+  if (!isMp() || !session) return;
+  const t = me();
+  pendingTactics = { formation: t.formation, mentality: t.mentality, lineup: (t.lineup || []).slice(), bench: (t.bench || []).slice() };
+  clearTimeout(tacticsTimer);
+  tacticsTimer = setTimeout(flushTactics, 700);
+}
+async function flushTactics() {
+  clearTimeout(tacticsTimer);
+  if (!pendingTactics || !session) return;
+  const payload = pendingTactics;
+  try {
+    await session.submit('tactics', payload, true);
+  } catch (e) {
+    toast(`Taktik gönderilemedi: ${e.message}`);
+    return;
+  }
+  if (pendingTactics === payload) pendingTactics = null;
+}
+
+function tacticsChanged() {
+  save();
+  queueTactics();
+}
+
 function pickSlot(i, pid) {
   const t = me();
   const cur = t.lineup[i];
@@ -501,7 +716,7 @@ function pickSlot(i, pid) {
       t.lineup[i] = pid;
     } else t.lineup[i] = pid;
   }
-  save();
+  tacticsChanged();
   closeModal();
   render();
 }
@@ -516,7 +731,7 @@ function pickBench(i, pid) {
     else if (bi < 0) t.bench.push(pid);
   }
   t.bench = [...new Set(t.bench.filter(Boolean))].slice(0, 9);
-  save();
+  tacticsChanged();
   closeModal();
   render();
 }
@@ -543,7 +758,7 @@ function changeFormation(f) {
   const auto = autoPick(squadOf(state, t.id).filter((p) => !used.has(p.id)), f);
   lineup.forEach((id, i) => { if (!id && auto.lineup[i]) { lineup[i] = auto.lineup[i]; used.add(auto.lineup[i]); } });
   t.bench = (t.bench || []).filter((id) => !lineup.includes(id));
-  save();
+  tacticsChanged();
   render();
 }
 
@@ -574,7 +789,7 @@ function leagueHtml() {
         <tbody>${table.map((r, i) => `
           <tr class="${r.id === state.userTeamId ? 'me' : ''} ${i === 0 || i === 1 ? 'z-cl' : i <= 3 ? 'z-el' : i >= table.length - 3 ? 'z-rel' : ''}" data-act="team" data-id="${r.id}">
             <td class="rank">${i + 1}</td>
-            <td class="tl"><div class="teamcell">${badge(r.id, 'sm')}<span class="ellipsis">${esc(T(r.id).name)}</span></div></td>
+            <td class="tl"><div class="teamcell">${badge(r.id, 'sm')}<span class="ellipsis">${esc(T(r.id).name)}</span>${isMp() && isHuman(state, r.id) ? `<span class="tag human">${esc(managerName(r.id))}</span>` : ''}</div></td>
             <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td>
           </tr>`).join('')}</tbody>
       </table></div>
@@ -614,9 +829,10 @@ function statsHtml() {
 
 function historyHtml() {
   if (!state.history.length) return '<section class="card muted small">Tamamlanan sezon yok. Sezon sonunda şampiyonlar ve ödüller burada listelenecek.</section>';
+  const uid = state.userTeamId;
   return state.history.slice().reverse().map((h) => `
     <section class="card">
-      <div class="card-h">${seasonLabel(h.season)} <span>Sıranız: ${h.userPos}.</span></div>
+      <div class="card-h">${seasonLabel(h.season)} <span>Sıranız: ${h.humans?.[uid]?.pos ?? h.userPos}.</span></div>
       <div class="row-flex">${badge(h.champion)}<div class="grow"><b>🏆 ${esc(T(h.champion).name)}</b><div class="muted small">Şampiyon</div></div></div>
       <div class="hr"></div>
       <div class="small">⚽ Gol kralı: <b>${esc(h.topScorer?.name || '-')}</b> (${h.topScorer?.v ?? 0})<br>🎯 Asist kralı: <b>${esc(h.topAssist?.name || '-')}</b> (${h.topAssist?.v ?? 0})<br>⭐ Sezonun oyuncusu: <b>${esc(h.best?.name || '-')}</b> (${h.best?.v ?? '-'})</div>
@@ -635,7 +851,7 @@ function openTeam(id) {
       <div class="stat"><span>Kadro</span><b>${sq.length}</b></div>
     </div>
     <div class="spacer"></div>
-    <div class="muted small">${esc(t.city)} · ${esc(t.stadium)} (${t.capacity.toLocaleString('tr-TR')}) · Teknik direktör: ${esc(t.coach)}</div>
+    <div class="muted small">${esc(t.city)} · ${esc(t.stadium)} (${t.capacity.toLocaleString('tr-TR')}) · Teknik direktör: ${esc(t.coach)}${isMp() && isHuman(state, id) ? ' <span class="tag human">oyuncu</span>' : ''}</div>
     <div class="hr"></div>
     <div class="list">${sq.map((p) => `<button class="item" data-act="player" data-id="${p.id}">${posPill(p.pos)}<div class="grow"><div class="name ellipsis">${esc(p.name)}</div><div class="sub">${flag(p.nat)} ${p.age} yaş · ${fmtMoney(playerValue(p, state.season))} ${statusIcons(p)}</div></div>${ovrPill(p.ovr)}</button>`).join('')}</div>`);
 }
@@ -646,18 +862,11 @@ function openReport(fid) {
   const side = (i) => f.events.filter((e) => e.side === i && e.type === 'goal').map((e) => `${esc(P(e.pid)?.name || '')} ${e.t}'${e.pen ? ' (P)' : ''}`).join('<br>');
   const reds = f.events.filter((e) => e.type === 'red');
   const statRow = (label, arr, suffix = '') => `<div class="row-flex small" style="padding:5px 0;border-bottom:1px solid var(--line)"><b style="width:50px">${arr[0]}${suffix}</b><span class="grow center muted">${label}</span><b style="width:50px;text-align:right">${arr[1]}${suffix}</b></div>`;
-  const ratingList = (teamId) => Object.entries(f.ratings || {})
-    .filter(([pid]) => {
-      const p = P(pid);
-      return p && f.events !== undefined && (p.teamId === teamId || (p.history && false));
-    })
-    .sort((a, b) => b[1] - a[1]);
   const ratingsHtml = (teamId) => {
     const rows = Object.entries(f.ratings || {}).map(([pid, r]) => ({ p: P(pid), r })).filter((x) => x.p && x.p.teamId === teamId).sort((a, b) => b.r - a.r);
     if (!rows.length) return '';
     return `<div class="card-h" style="margin-top:12px">${esc(T(teamId).name)} oyuncu puanları</div>${rows.map(({ p, r }) => `<div class="row-flex small" style="padding:4px 0">${posPill(p.pos)}<span class="grow ellipsis">${esc(p.name)}${f.motm === p.id ? ' ⭐' : ''}</span><b>${r.toFixed(1)}</b></div>`).join('')}`;
   };
-  void ratingList;
   openModal(`${sheetHead(`${f.round}. hafta · ${fmtDate(f.date)}`)}
     <div class="vs">
       <div class="vs-team">${teamKit(f.home, 64)}<div class="nm">${esc(T(f.home).name)}</div></div>
@@ -704,7 +913,7 @@ function openPlayer(pid) {
     <div class="row-flex" style="margin-bottom:12px">
       ${ovrPill(p.ovr)} ${posPill(p.pos)}
       <div class="grow small">${flag(p.nat)} ${esc(COUNTRY[p.nat] || p.nat)} · ${p.age} yaş · ${POS_LONG[p.pos]}<br>
-        <span class="muted">${team ? esc(team.name) : p.abroad ? esc(p.abroad) : 'Serbest oyuncu'}${p.num ? ` · #${p.num}` : ''}${p.loan ? ` · ${esc(p.loan.fromName)} kulübünden kiralık` : ''}</span></div>
+        <span class="muted">${team ? esc(team.name) : p.abroad ? esc(p.abroad) : 'Serbest oyuncu'}${p.num ? ` · #${p.num}` : ''}${p.loan ? ` · ${esc(p.loan.fromName)} kulübünden kiralık` : ''}${isMp() && team && isHuman(state, team.id) && !own ? ` · TD: ${esc(managerName(team.id))}` : ''}</span></div>
     </div>
     <div class="grid3">
       <div class="stat"><span>Potansiyel</span><b>${potText}</b></div>
@@ -733,6 +942,8 @@ function openBid(pid, type) {
   const p = P(pid);
   const value = playerValue(p, state.season);
   const balance = me().finance.balance;
+  const humanSeller = isMp() && isHuman(state, p.teamId);
+  const who = humanSeller ? `${managerName(p.teamId)} teklifini değerlendirecek.` : 'Kulüp 1-2 gün içinde yanıt verir.';
   if (type === 'transfer') {
     const max = Math.max(roundMoney(value * 3), 500000);
     const step = value >= 5e6 ? 100000 : 25000;
@@ -741,7 +952,7 @@ function openBid(pid, type) {
       <div class="spacer"></div>
       <label class="lbl">Bonservis bedeli: <b id="feeLbl">${fmtMoney(value)}</b></label>
       <input type="range" id="fee" min="0" max="${max}" step="${step}" value="${Math.min(value, max)}" data-input="fee">
-      <div class="muted small">Kasanız: ${fmtMoney(balance)} · Kulüp 1-2 gün içinde yanıt verir. Anlaşılırsa oyuncuyla sözleşme görüşürsünüz.</div>
+      <div class="muted small">Kasanız: ${fmtMoney(balance)} · ${who}${humanSeller ? '' : ' Anlaşılırsa oyuncuyla sözleşme görüşürsünüz.'}</div>
       <button class="btn primary block" data-act="sendBid" data-id="${pid}" data-type="transfer">Teklifi gönder</button>`);
   } else {
     openModal(`${sheetHead('Kiralama teklifi')}
@@ -752,7 +963,7 @@ function openBid(pid, type) {
       <div class="spacer"></div>
       <label class="lbl">Kiralama bedeli: <b id="feeLbl">€0</b></label>
       <input type="range" id="fee" min="0" max="${Math.max(roundMoney(value * 0.3), 100000)}" step="25000" value="0" data-input="fee">
-      <div class="muted small">Kiralama sezon sonuna kadar geçerlidir. Kulüpler önemli oyuncularını kolay kolay kiralık vermez.</div>
+      <div class="muted small">Kiralama sezon sonuna kadar geçerlidir. ${who}</div>
       <button class="btn primary block" data-act="sendBid" data-id="${pid}" data-type="loan">Teklifi gönder</button>`);
   }
 }
@@ -843,8 +1054,8 @@ const OFFER_STATUS = {
 
 function offersHtml() {
   const uid = state.userTeamId;
-  const mine = state.offers.filter((o) => o.user);
-  const incoming = state.offers.filter((o) => !o.user && o.to === uid);
+  const mine = state.offers.filter((o) => o.user && o.from === uid);
+  const incoming = state.offers.filter((o) => o.to === uid && o.from !== uid);
   const row = (o, dir) => {
     const p = P(o.pid);
     const other = dir === 'out' ? T(o.to)?.name : o.fromForeign || T(o.from)?.name;
@@ -860,20 +1071,20 @@ function offersHtml() {
 
 // ---------- Gelen kutusu ----------
 function inboxHtml() {
-  if (!state.inbox.length) return '<section class="card muted">Gelen kutunuz boş.</section>';
-  return `<section class="card" style="padding:4px 12px"><div class="list">${state.inbox.slice(0, 120).map((m) => `
+  const list = myInbox();
+  if (!list.length) return '<section class="card muted">Gelen kutunuz boş.</section>';
+  return `<section class="card" style="padding:4px 12px"><div class="list">${list.slice(0, 120).map((m) => `
     <button class="item" data-act="msg" data-id="${m.id}">
-      <span style="width:8px;height:8px;border-radius:50%;flex:none;background:${!m.read ? 'var(--accent)' : 'transparent'}"></span>
-      <div class="grow"><div class="name ellipsis" style="${m.read ? 'font-weight:500' : ''}">${esc(m.title)}</div>
-        <div class="sub">${fmtDate(m.date)}${m.needsAction && !m.resolved ? ' · <span style="color:var(--warn)">Yanıt bekliyor</span>' : ''}</div></div>
+      <span style="width:8px;height:8px;border-radius:50%;flex:none;background:${!isRead(m) ? 'var(--accent)' : 'transparent'}"></span>
+      <div class="grow"><div class="name ellipsis" style="${isRead(m) ? 'font-weight:500' : ''}">${esc(m.title)}</div>
+        <div class="sub">${fmtDate(m.date)}${m.needsAction && !m.resolved ? ` · <span style="color:var(--warn)">Yanıt bekliyor${isMp() && m.expires ? ` (son gün ${fmtDate(m.expires)})` : ''}</span>` : ''}</div></div>
     </button>`).join('')}</div></section>`;
 }
 
 function openMessage(id) {
   const m = state.inbox.find((x) => x.id === id);
   if (!m) return;
-  m.read = true;
-  save();
+  markRead(m);
   const o = m.offerId ? state.offers.find((x) => x.id === m.offerId) : null;
   let actions = '';
   if (m.needsAction && !m.resolved && o) {
@@ -898,7 +1109,7 @@ function openMessage(id) {
     }
   }
   openModal(`${sheetHead(esc(m.title))}
-    <div class="muted small" style="margin-bottom:8px">${fmtDate(m.date, true)}</div>
+    <div class="muted small" style="margin-bottom:8px">${fmtDate(m.date, true)}${isMp() && m.needsAction && !m.resolved && m.expires ? ` · Son yanıt günü: ${fmtDate(m.expires)}` : ''}</div>
     <div class="msg-body">${esc(m.body)}</div>
     ${actions}
     ${m.pid && P(m.pid) ? `<button class="btn ghost block" data-act="player" data-id="${m.pid}">Oyuncu profilini aç</button>` : ''}
@@ -909,6 +1120,7 @@ function openMessage(id) {
 function openClub() {
   const t = me();
   const f = t.finance.season;
+  const board = myBoard();
   const income = f.gate + f.tv + f.sponsor + f.prize + f.sales;
   const expense = f.wages + f.purchases + f.running;
   const line = (l, v) => `<div class="row-flex small" style="padding:5px 0;border-bottom:1px solid var(--line)"><span class="grow muted">${l}</span><b>${fmtMoney(v)}</b></div>`;
@@ -916,20 +1128,25 @@ function openClub() {
     <div class="grid2">
       <div class="stat"><span>Kasa</span><b>${fmtMoney(t.finance.balance)}</b></div>
       <div class="stat"><span>İtibar</span><b>${t.rep}/100</b></div>
-      <div class="stat"><span>Yönetim hedefi</span><b>${esc(state.board.label)}</b></div>
-      <div class="stat"><span>Yönetim güveni</span><b>%${Math.round(state.board.confidence)}</b></div>
+      <div class="stat"><span>Yönetim hedefi</span><b>${esc(board.label)}</b></div>
+      <div class="stat"><span>Yönetim güveni</span><b>%${Math.round(board.confidence)}</b></div>
     </div>
-    <div class="muted small" style="margin-top:8px">Teknik direktör: ${esc(state.manager)} · ${esc(t.stadium)} (${t.capacity.toLocaleString('tr-TR')} kişilik)</div>
+    <div class="muted small" style="margin-top:8px">Teknik direktör: ${esc(managerName())} · ${esc(t.stadium)} (${t.capacity.toLocaleString('tr-TR')} kişilik)</div>
     <div class="card-h" style="margin-top:14px">Bu sezon gelirler <span>${fmtMoney(income)}</span></div>
     ${line('Bilet gelirleri', f.gate)}${line('Yayın gelirleri', f.tv)}${line('Sponsorluk', f.sponsor)}${line('Ödüller', f.prize)}${line('Oyuncu satışları', f.sales)}
     <div class="card-h" style="margin-top:14px">Bu sezon giderler <span>${fmtMoney(expense)}</span></div>
     ${line('Maaşlar', f.wages)}${line('Transfer harcamaları', f.purchases)}${line('İşletme giderleri', f.running)}
     <div class="hr"></div>
-    <button class="btn danger block" data-act="confirmNew">Yeni kariyer başlat</button>
-    <p class="footer-note">Oyun her adımda bu cihazın tarayıcısına otomatik kaydedilir.</p>`);
+    ${isMp()
+      ? `<div class="note small">Ortak kariyer · Lig kodu <b>${esc(session.code)}</b>. Ligden çıksan da takımın ligde kalır; istediğin zaman kodla geri dönebilirsin.</div>
+         <button class="btn block" data-act="mpShare">Arkadaş davet et</button>
+         <button class="btn danger block" data-act="mpLeave">Bu cihazda ligden çık</button>`
+      : `<button class="btn block" data-act="mpOpen">Arkadaşlarla oyna</button>
+         <button class="btn danger block" data-act="confirmNew">Yeni kariyer başlat</button>
+         <p class="footer-note">Oyun her adımda bu cihazın tarayıcısına otomatik kaydedilir.</p>`}`);
 }
 
-// ---------- Maç önü & canlı maç ----------
+// ---------- Maç önü & canlı maç (tek oyunculu) ----------
 function openPrematch(fx) {
   const uid = state.userTeamId;
   const { lineup } = prepareLineup(state, uid);
@@ -1063,15 +1280,27 @@ function openSubs(outPid = null) {
 function renderSeasonEnd() {
   const s = state.seasonSummary;
   const table = s.table;
+  const uid = state.userTeamId;
+  const mine = s.humans?.[uid] || { pos: s.userPos, target: s.target, verdict: s.verdict };
+  let button;
+  if (isMp()) {
+    const lg = session.league;
+    const members = Object.values(lg.members);
+    const ready = lg.members[session.uid]?.ready;
+    button = `<button class="btn ${ready ? '' : 'primary'} block" data-act="ready">${ready ? 'Hazırsın ✓ Diğerleri bekleniyor' : 'Yeni sezona hazırım'} (${members.filter((m) => m.ready).length}/${members.length})</button>`;
+  } else {
+    button = state.gameOver ? '<button class="btn danger block" data-act="gameOverScreen">Devam</button>' : '<button class="btn primary block" data-act="newSeason">Yeni sezona başla</button>';
+  }
   $app.innerHTML = `
     <div class="shell" style="padding-bottom:20px"><main>
       <div class="hero"><div class="ball">🏆</div><h1>${seasonLabel(s.season)} sezonu bitti</h1><p>Trendyol Süper Lig</p></div>
-      <section class="card"><div class="row-flex">${badge(s.champion, 'lg')}<div class="grow"><div class="muted small">Şampiyon</div><b style="font-size:20px">${esc(T(s.champion).name)}</b></div></div></section>
+      <section class="card"><div class="row-flex">${teamKit(s.champion, 56)}<div class="grow"><div class="muted small">Şampiyon</div><b style="font-size:20px">${esc(T(s.champion).name)}</b></div></div></section>
       <section class="card">
-        <div class="card-h">${esc(me().name)} <span>Hedef: ${esc(s.target)}</span></div>
-        <div style="font-size:28px;font-weight:900">${s.userPos}. sıra</div>
-        <div class="note small">${esc(s.verdict)}</div>
+        <div class="card-h">${esc(me().name)} <span>Hedef: ${esc(mine.target)}</span></div>
+        <div style="font-size:28px;font-weight:900">${mine.pos}. sıra</div>
+        <div class="note small">${esc(mine.verdict)}</div>
       </section>
+      ${isMp() && s.humans ? `<section class="card"><div class="card-h">Arkadaşlar</div>${Object.entries(s.humans).sort((a, b) => a[1].pos - b[1].pos).map(([tid, h]) => `<div class="member">${teamKit(tid, 30)}<div class="grow"><b>${esc(h.manager || '')}</b><div class="muted small">${esc(T(tid).name)}</div></div><b>${h.pos}.</b></div>`).join('')}</section>` : ''}
       <section class="card small">
         ⚽ Gol kralı: <b>${esc(s.topScorer?.name || '-')}</b> (${s.topScorer?.v ?? 0})<br>
         🎯 Asist kralı: <b>${esc(s.topAssist?.name || '-')}</b> (${s.topAssist?.v ?? 0})<br>
@@ -1079,8 +1308,8 @@ function renderSeasonEnd() {
         ⬇️ Küme düşen: ${s.relegated.map((id) => esc(T(id).name)).join(', ')}
         <div class="muted" style="margin-top:6px">Not: Bu sürümde lig 18 takımla devam eder; alt ligler henüz eklenmedi.</div>
       </section>
-      <section class="card" style="padding:8px"><table class="tbl"><tbody>${table.map((r, i) => `<tr class="${r.id === state.userTeamId ? 'me' : ''}"><td class="rank">${i + 1}</td><td class="tl"><div class="teamcell">${badge(r.id, 'sm')}${esc(T(r.id).name)}</div></td><td>${r.gd > 0 ? '+' : ''}${r.gd}</td><td><b>${r.pts}</b></td></tr>`).join('')}</tbody></table></section>
-      ${state.gameOver ? '<button class="btn danger block" data-act="gameOverScreen">Devam</button>' : '<button class="btn primary block" data-act="newSeason">Yeni sezona başla</button>'}
+      <section class="card" style="padding:8px"><table class="tbl"><tbody>${table.map((r, i) => `<tr class="${r.id === uid ? 'me' : ''}"><td class="rank">${i + 1}</td><td class="tl"><div class="teamcell">${badge(r.id, 'sm')}${esc(T(r.id).name)}</div></td><td>${r.gd > 0 ? '+' : ''}${r.gd}</td><td><b>${r.pts}</b></td></tr>`).join('')}</tbody></table></section>
+      ${button}
     </main></div>`;
 }
 
@@ -1094,8 +1323,161 @@ function renderGameOver() {
     </main></div>`;
 }
 
+// ---------- Ortak kariyer bağlantısı ----------
+function onMpState(s) {
+  const uid = session.myTeamId();
+  s.userTeamId = uid;
+  state = s;
+  if (pendingTactics && state.teams[uid]) Object.assign(state.teams[uid], structuredClone(pendingTactics));
+  const played = new Set(state.fixtures.filter((f) => f.played && (f.home === uid || f.away === uid)).map((f) => f.id));
+  const fresh = seenPlayed ? state.fixtures.filter((f) => played.has(f.id) && !seenPlayed.has(f.id)) : [];
+  seenPlayed = played;
+  render();
+  if (fresh.length && $modal.hidden) openReport(fresh[fresh.length - 1].id);
+}
+
+async function connect(code) {
+  const net = await getNet();
+  session?.stop();
+  state = null;
+  live = null;
+  pendingTactics = null;
+  seenPlayed = null;
+  mode = 'mp';
+  mp.connecting = true;
+  render();
+  const s = new OnlineSession(net, code, {
+    onLeague: () => {
+      if (session !== s || mp.connecting) return;
+      if (state) state.userTeamId = s.myTeamId();
+      render();
+    },
+    onState: (st) => { if (session === s) onMpState(st); },
+    toast,
+  });
+  session = s;
+  loadRead(code);
+  try {
+    await s.start();
+  } finally {
+    mp.connecting = false;
+  }
+  if (!s.league || !s.league.members?.[net.uid]) {
+    s.stop();
+    session = null;
+    mp.code = code;
+    if (s.league) {
+      mp.joinInfo = s.league;
+      throw new UserError('Bu lige henüz katılmadın. Takımını seçip "Lige katıl"a bas.');
+    }
+    throw new UserError('Bu kodla bir lig bulunamadı.');
+  }
+  const store = onlineStore();
+  const leagues = (store.leagues || []).filter((l) => l.code !== code);
+  leagues.unshift({ code, teamId: s.myTeamId() });
+  setOnlineStore({ active: code, name: s.myMember().name, leagues: leagues.slice(0, 10) });
+  render();
+}
+
+async function mpRun(fn) {
+  if (mp.busy) return;
+  mp.busy = true;
+  render();
+  try {
+    await fn();
+  } catch (e) {
+    console.error(e);
+    toast(e instanceof UserError ? e.message : `Hata: ${e.message}`, 4500);
+  } finally {
+    mp.busy = false;
+    render();
+  }
+}
+
+function requireNameTeam() {
+  mp.name = mp.name.trim();
+  if (!mp.name) throw new UserError('Önce adını yaz.');
+  if (!mp.teamId) throw new UserError('Bir takım seç.');
+}
+
+async function fetchJoinInfo() {
+  try {
+    const net = await getNet();
+    mp.joinInfo = await net.getLeague(mp.code);
+    if (!mp.joinInfo) toast('Bu kodla bir lig bulunamadı.');
+    else if (mp.joinInfo.members?.[net.uid]) {
+      await connect(mp.code);
+      return;
+    }
+  } catch (e) {
+    mp.joinInfo = null;
+    toast(e instanceof UserError ? e.message : `Bağlantı hatası: ${e.message}`);
+  }
+  render();
+}
+
+async function shareInvite() {
+  const code = session.code;
+  const url = leagueLink(code);
+  const text = `Süper Lig Menajer'de ortak kariyere katıl! Lig kodu: ${code}`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Süper Lig Menajer', text, url });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(`${text}\n${url}`);
+    toast('Davet linki kopyalandı. Arkadaşına gönder.');
+  } catch {
+    openModal(`${sheetHead('Arkadaş davet et')}<div class="code-big">${esc(code)}</div><div class="note small" style="word-break:break-all">${esc(url)}</div>`);
+  }
+}
+
+async function toggleReady() {
+  if (!session?.league) return;
+  const mine = session.league.members[session.uid];
+  if (!mine) return;
+  try {
+    if (!mine.ready) await flushTactics();
+    await session.setReady(!mine.ready);
+  } catch (e) {
+    toast(`Bağlantı hatası: ${e.message}`);
+  }
+}
+
+async function mpAction(type, payload) {
+  toast('İşleniyor…', 30000);
+  try {
+    const r = await session.submit(type, payload, true);
+    $toast.hidden = true;
+    return r || { ok: true };
+  } catch (e) {
+    $toast.hidden = true;
+    return { ok: false, text: `Bağlantı hatası: ${e.message}` };
+  }
+}
+
+function leaveMp() {
+  session?.stop();
+  session = null;
+  setOnlineStore({ active: null });
+  mode = 'sp';
+  mp.connecting = false;
+  mp.joinInfo = null;
+  pendingTactics = null;
+  readIds = new Set();
+  const saved = loadSave();
+  state = saved?.teams?.[saved.userTeamId] ? migrateState(syncStatic(saved)) : null;
+  closeModal();
+  render();
+}
+
 // ---------- Olaylar ----------
 function doContinue() {
+  if (isMp()) return toggleReady();
   if (!state || live) return;
   closeModal();
   const res = continueGame(state);
@@ -1108,6 +1490,7 @@ function doContinue() {
 const actions = {
   close: () => closeModal(),
   continue: doContinue,
+  ready: () => toggleReady(),
   tab: (d) => { view.tab = d.tab; closeModal(); render(); window.scrollTo(0, 0); },
   squadTab: (d) => { view.squadTab = d.v; render(); },
   squadFilter: (d) => { view.squadFilter = d.v; render(); },
@@ -1129,28 +1512,30 @@ const actions = {
     const r = autoPick(squadOf(state, t.id), t.formation);
     t.lineup = r.lineup;
     t.bench = r.bench;
-    save();
+    tacticsChanged();
     render();
     toast('En iyi 11 seçildi.');
   },
-  mentality: (d) => { me().mentality = d.v; save(); render(); },
+  mentality: (d) => { me().mentality = d.v; tacticsChanged(); render(); },
   goTactics: () => { closeModal(); view.tab = 'squad'; view.squadTab = 'tactics'; render(); },
   bid: (d) => openBid(d.id, d.type),
-  sendBid: (d) => {
+  sendBid: async (d) => {
     const fee = Number(document.getElementById('fee')?.value || 0);
     const share = Number(document.getElementById('share')?.value ?? 100);
-    const r = withRng(() => makeBid(state, { pid: d.id, type: d.type, fee, wageShare: share }));
-    if (!r.ok) return toast(r.error, 3500);
+    const payload = { pid: d.id, type: d.type, fee, wageShare: share };
+    const r = isMp() ? await mpAction('bid', payload) : withRng(() => makeBid(state, payload));
+    if (!r.ok) return toast(r.error || r.text || 'Teklif gönderilemedi.', 4000);
     if (r.freeAgent) return openContract(d.id);
     closeModal();
-    toast('Teklif gönderildi. Kulüp 1-2 gün içinde yanıt verecek.');
+    toast(isMp() ? 'Teklif gönderildi. Yanıt, lig ilerledikçe gelen kutuna düşecek.' : 'Teklif gönderildi. Kulüp 1-2 gün içinde yanıt verecek.', 3500);
     render();
   },
   contract: (d) => openContract(d.id, d.offer || null),
-  sendContract: (d) => {
+  sendContract: async (d) => {
     const wage = Number(document.getElementById('wage').value);
     const years = Number(document.getElementById('years').value);
-    const r = withRng(() => proposeContract(state, { pid: d.id, wage, years, offerId: d.offer || null }));
+    const payload = { pid: d.id, wage, years, offerId: d.offer || null };
+    const r = isMp() ? await mpAction('contract', payload) : withRng(() => proposeContract(state, payload));
     const note = document.getElementById('cNote');
     if (r.result === 'accepted') {
       closeModal();
@@ -1158,31 +1543,46 @@ const actions = {
       render();
       return;
     }
-    if (note) note.innerHTML = `<div class="note ${r.result === 'counter' ? '' : 'bad'}">${esc(r.text)}</div>`;
+    const text = r.text || 'İşlem tamamlanamadı.';
+    if (note) note.innerHTML = `<div class="note ${r.result === 'counter' ? '' : 'bad'}">${esc(text)}</div>`;
+    else toast(text, 4000);
     if (r.result === 'counter' && r.wage) {
       const input = document.getElementById('wage');
-      if (Number(input.max) < r.wage) input.max = r.wage;
+      if (input && Number(input.max) < r.wage) input.max = r.wage;
     }
     if (r.result === 'walkaway') {
       document.querySelectorAll('[data-act="sendContract"]').forEach((b) => { b.disabled = true; });
       render();
     }
   },
-  cancelNeg: (d) => { cancelNegotiation(state, d.offer); save(); closeModal(); render(); toast('Transfer görüşmeleri sonlandırıldı.'); },
-  incoming: (d) => {
-    const fee = Number(document.getElementById('fee')?.value || 0);
-    const r = withRng(() => respondIncoming(state, d.offer, d.a, fee));
+  cancelNeg: async (d) => {
+    if (isMp()) await mpAction('cancelNeg', { offerId: d.offer });
+    else {
+      cancelNegotiation(state, d.offer);
+      save();
+    }
     closeModal();
     render();
-    toast(r.text, 3800);
+    toast('Transfer görüşmeleri sonlandırıldı.');
   },
-  counterReply: (d) => {
-    const r = withRng(() => respondCounter(state, d.offer, d.a === '1'));
+  incoming: async (d) => {
+    const fee = Number(document.getElementById('fee')?.value || 0);
+    const r = isMp()
+      ? await mpAction('incoming', { offerId: d.offer, action: d.a, fee })
+      : withRng(() => respondIncoming(state, d.offer, d.a, fee));
     closeModal();
     render();
-    const m = state.inbox.find((x) => x.needsAction && !x.resolved && x.offerId === d.offer);
+    toast(r.text || 'Tamam.', 3800);
+  },
+  counterReply: async (d) => {
+    const r = isMp()
+      ? await mpAction('counterReply', { offerId: d.offer, accept: d.a === '1' })
+      : withRng(() => respondCounter(state, d.offer, d.a === '1'));
+    closeModal();
+    render();
+    const m = myInbox().find((x) => x.needsAction && !x.resolved && x.offerId === d.offer);
     if (m) openMessage(m.id);
-    else toast(r.text, 3500);
+    else toast(r.text || 'Tamam.', 3500);
   },
   live: (d) => startLive(d.id),
   quick: (d) => quickMatch(d.id),
@@ -1201,6 +1601,7 @@ const actions = {
   mSkip: () => { clearTimeout(live.timer); live.m.playToEnd(); save(); renderMatch(); },
   mFinish: () => finishLive(),
   newSeason: () => {
+    if (isMp()) return toggleReady();
     startNewSeason(state);
     save();
     view.round = null;
@@ -1239,9 +1640,43 @@ const actions = {
     openMessage(state.inbox[0].id);
   },
   resume: () => {
-    state = syncStatic(loadSave());
+    state = migrateState(syncStatic(loadSave()));
     render();
   },
+
+  // Ortak kariyer
+  mpOpen: () => {
+    closeModal();
+    save();
+    live = null;
+    state = null;
+    mode = 'mp';
+    render();
+  },
+  mpBack: () => leaveMp(),
+  mpLeave: () => leaveMp(),
+  mpPickTeam: (d) => { mp.teamId = d.id; render(); },
+  mpCreate: () => mpRun(async () => {
+    requireNameTeam();
+    const net = await getNet();
+    const code = await createLeague(net, { name: mp.name, teamId: mp.teamId });
+    await connect(code);
+  }),
+  mpJoin: () => mpRun(async () => {
+    requireNameTeam();
+    const code = mp.code.trim().toUpperCase();
+    if (code.length !== 6) throw new UserError('6 haneli lig kodunu yaz.');
+    const net = await getNet();
+    await joinLeague(net, code, { name: mp.name, teamId: mp.teamId });
+    await connect(code);
+  }),
+  mpResume: (d) => mpRun(() => connect(d.code)),
+  mpLobbyTeam: (d) => mpRun(() => setMemberTeam(session.net, session.code, d.id)),
+  mpStart: () => mpRun(async () => {
+    const ok = await startLeague(session.net, session.code);
+    if (!ok) throw new UserError('Lig başlatılamadı.');
+  }),
+  mpShare: () => shareInvite(),
 };
 
 document.addEventListener('click', (e) => {
@@ -1261,6 +1696,16 @@ document.addEventListener('change', (e) => {
 document.addEventListener('input', (e) => {
   const el = e.target;
   if (el.dataset.input === 'manager') pendingStart.manager = el.value;
+  if (el.dataset.input === 'mpName') mp.name = el.value;
+  if (el.dataset.input === 'mpCode') {
+    const v = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    el.value = v;
+    mp.code = v;
+    mp.joinInfo = null;
+    const joinBtn = document.querySelector('[data-act="mpJoin"]');
+    if (joinBtn) joinBtn.disabled = v.length !== 6 || !onlineAvailable();
+    if (v.length === 6) fetchJoinInfo();
+  }
   if (el.dataset.input === 'fee') document.getElementById('feeLbl').textContent = fmtMoney(Number(el.value));
   if (el.dataset.input === 'wage') document.getElementById('wageLbl').textContent = fmtMoney(Number(el.value));
 });
@@ -1272,7 +1717,7 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstall = e;
-  if (!live) render();
+  if (!live && !isMp()) render();
 });
 window.addEventListener('appinstalled', () => {
   deferredInstall = null;
@@ -1288,8 +1733,11 @@ document.addEventListener('visibilitychange', () => {
       clearTimeout(live.timer);
     }
     save();
+    if (isMp()) flushTactics();
   } else if (live) {
     renderMatch();
+  } else if (session) {
+    session.tick();
   }
 });
 window.addEventListener('pagehide', () => save());
@@ -1298,11 +1746,40 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
-// Açılışta kayıt varsa başlangıç ekranını atlayıp doğrudan oyuna gir.
+// Açılış: davet linki → ortak kariyer; aktif lig → ona bağlan; yoksa tek oyunculu kayıt.
 function boot() {
+  const params = new URLSearchParams(location.search);
+  const invite = (params.get('lig') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+  if (params.has('lig')) {
+    params.delete('lig');
+    history.replaceState(null, '', `${location.pathname}${params.toString() ? `?${params}` : ''}`);
+  }
+  const store = onlineStore();
+  if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
+
+  if (invite.length === 6 && onlineAvailable()) {
+    mode = 'mp';
+    mp.code = invite;
+    mp.name = store.name || '';
+    render();
+    fetchJoinInfo();
+    return;
+  }
+  if (store.active && onlineAvailable()) {
+    mode = 'mp';
+    mp.name = store.name || '';
+    connect(store.active).catch((e) => {
+      toast(e instanceof UserError ? e.message : `Lige bağlanılamadı: ${e.message}`, 4500);
+      session = null;
+      mp.connecting = false;
+      render();
+    });
+    return;
+  }
+
   const saved = loadSave();
   if (saved && saved.teams?.[saved.userTeamId]) {
-    state = syncStatic(saved);
+    state = migrateState(syncStatic(saved));
     if (state.live) {
       seedRng(state.rng);
       const m = Match.restore(state, state.live);
@@ -1310,7 +1787,6 @@ function boot() {
       else delete state.live;
     }
   }
-  if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   render();
   if (live) toast('Maç kaldığın dakikada duraklatıldı. Devam etmek için ▶ düğmesine dokun.', 4000);
 }

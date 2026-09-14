@@ -1,6 +1,6 @@
 // Çevrimdışı oynanabilmesi için basit service worker.
 // Önce ağdan dener (güncellemeler hemen gelsin), ağ yoksa önbellekten sunar.
-const CACHE = 'slm-v3';
+const CACHE = 'slm-v4';
 const ASSETS = [
   './',
   'index.html',
@@ -18,6 +18,10 @@ const ASSETS = [
   'js/engine/inbox.js',
   'js/engine/transfers.js',
   'js/engine/game.js',
+  'js/online/config.js',
+  'js/online/online.js',
+  'js/online/net-firebase.js',
+  'js/online/net-local.js',
 ];
 
 self.addEventListener('install', (e) => {

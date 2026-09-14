@@ -1,7 +1,8 @@
 // Oyun döngüsü: yeni oyun, takvim, fikstür, finans, yönetim ve sezon geçişi.
+// Tek oyunculu kariyerde tek bir insan takımı vardır; ortak kariyerde (state.mp) birden fazla.
 import { TEAMS, SEASON } from '../data/teams.js';
 import {
-  seedRng, getRngState, rand, randInt, chance, pick, shuffle, clamp, addDays, weekday, roundMoney, fmtMoney,
+  seedRng, getRngState, rand, randInt, chance, pick, shuffle, clamp, addDays, daysBetween, weekday, roundMoney, fmtMoney,
 } from './util.js';
 import {
   parsePlayerLine, expectedWage, weeklyDevelopment, ageOneYear, shouldRetire, emptySeasonStats, avgRating,
@@ -9,7 +10,7 @@ import {
 } from './players.js';
 import { autoPick, teamRating } from './tactics.js';
 import { simulateMatch, squadOf } from './match.js';
-import { addMessage, addNews } from './inbox.js';
+import { addMessage, addNews, isHuman, humansOf } from './inbox.js';
 import { dailyTransfers, fillAiSquads, currentWindow, transferWindows } from './transfers.js';
 
 export const START_DATE = `${SEASON}-08-10`;
@@ -18,15 +19,19 @@ function emptyLedger() {
   return { gate: 0, tv: 0, sponsor: 0, prize: 0, sales: 0, wages: 0, purchases: 0, running: 0 };
 }
 
-export function newGame(userTeamId, manager) {
+function createWorld() {
   seedRng((Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0);
   const state = {
-    version: 1,
+    version: 2,
     rng: 0,
     season: SEASON,
     date: START_DATE,
-    userTeamId,
-    manager: manager || 'Teknik Direktör',
+    userTeamId: null,
+    manager: null,
+    humans: [],
+    managers: {},
+    boards: {},
+    mp: null,
     teams: {},
     players: {},
     fixtures: [],
@@ -36,7 +41,6 @@ export function newGame(userTeamId, manager) {
     transferLog: [],
     history: [],
     negotiations: {},
-    board: null,
     phase: 'season',
     gameOver: false,
     nextPid: 1,
@@ -66,23 +70,70 @@ export function newGame(userTeamId, manager) {
     }
     state.teams[t.id] = team;
   }
-
-  const user = state.teams[userTeamId];
-  user.coach = state.manager;
-  const picked = autoPick(squadOf(state, userTeamId), user.formation);
-  user.lineup = picked.lineup;
-  user.bench = picked.bench;
-
   state.fixtures = buildFixtures(state, SEASON);
-  state.board = makeBoard(state);
+  return state;
+}
+
+// Bir takımın yönetimini insan bir teknik direktöre verir.
+export function addHuman(state, teamId, name) {
+  const team = state.teams[teamId];
+  if (!state.humans.includes(teamId)) state.humans.push(teamId);
+  state.managers[teamId] = name;
+  team.coach = name;
+  if (!team.lineup) {
+    const picked = autoPick(squadOf(state, teamId), team.formation);
+    team.lineup = picked.lineup;
+    team.bench = picked.bench;
+  }
+  if (!state.boards[teamId]) state.boards[teamId] = makeBoard(state, teamId);
+  const w = currentWindow(state);
   addMessage(state, {
-    title: `${user.name} yönetimine hoş geldiniz`,
-    body: `Sayın ${state.manager}, ${user.name} teknik direktörlüğüne getirildiniz. Yönetimin bu sezonki hedefi: ${state.board.label}. `
-      + `Yaz transfer dönemi ${fmtDateShort(transferWindows(SEASON)[0].end)} tarihine kadar açık. Bütçeniz: ${fmtMoney(user.finance.balance)}. Başarılar!`,
+    teamId,
+    title: `${team.name} yönetimine hoş geldiniz`,
+    body: `Sayın ${name}, ${team.name} teknik direktörlüğüne getirildiniz. Yönetimin bu sezonki hedefi: ${state.boards[teamId].label}. `
+      + `${w ? `${w.label} ${fmtDateShort(w.end)} tarihine kadar açık. ` : ''}Bütçeniz: ${fmtMoney(team.finance.balance)}. Başarılar!`,
     quiet: true,
   });
+}
+
+export function newGame(userTeamId, manager) {
+  const state = createWorld();
+  state.userTeamId = userTeamId;
+  state.manager = manager || 'Teknik Direktör';
+  addHuman(state, userTeamId, state.manager);
   state.rng = getRngState();
   return state;
+}
+
+// Ortak kariyer: members = [{ teamId, name }]
+export function newMultiplayerGame(members, code) {
+  const state = createWorld();
+  state.mp = { code };
+  state.userTeamId = members[0].teamId;
+  for (const m of members) addHuman(state, m.teamId, m.name);
+  state.rng = getRngState();
+  return state;
+}
+
+// Eski kayıtları güncel veri yapısına taşır.
+export function migrateState(s) {
+  if (!s.humans) s.humans = s.userTeamId ? [s.userTeamId] : [];
+  if (!s.managers) s.managers = s.userTeamId ? { [s.userTeamId]: s.manager || 'Teknik Direktör' } : {};
+  if (!s.boards) s.boards = {};
+  if (s.board && s.userTeamId && !s.boards[s.userTeamId]) s.boards[s.userTeamId] = s.board;
+  delete s.board;
+  for (const t of s.humans) if (!s.boards[t]) s.boards[t] = makeBoard(s, t);
+  if (s.mp === undefined) s.mp = null;
+  for (const m of s.inbox) if (!m.teamId) m.teamId = s.userTeamId;
+  if (s.negotiations) {
+    for (const k of Object.keys(s.negotiations)) {
+      if (!k.includes(':')) {
+        s.negotiations[`${s.userTeamId}:${k}`] = s.negotiations[k];
+        delete s.negotiations[k];
+      }
+    }
+  }
+  return s;
 }
 
 function fmtDateShort(iso) {
@@ -136,9 +187,9 @@ export function buildFixtures(state, season) {
   return fixtures.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.round - b.round));
 }
 
-function makeBoard(state) {
+function makeBoard(state, teamId) {
   const sorted = Object.values(state.teams).sort((a, b) => b.rep - a.rep);
-  const rank = sorted.findIndex((t) => t.id === state.userTeamId) + 1;
+  const rank = sorted.findIndex((t) => t.id === teamId) + 1;
   let target;
   let label;
   if (rank <= 2) { target = 1; label = 'Şampiyonluk'; }
@@ -178,14 +229,19 @@ export function nextUserFixture(state) {
   return state.fixtures.find((f) => !f.played && (f.home === uid || f.away === uid)) || null;
 }
 
-// "Devam" düğmesi: kullanıcının dikkat etmesi gereken bir şey olana kadar günleri ilerletir.
+export function humanFixturesToday(state) {
+  return state.fixtures.filter((f) => f.date === state.date && !f.played && (isHuman(state, f.home) || isHuman(state, f.away)));
+}
+
+// Tek oyunculu "Devam" düğmesi: kullanıcının dikkat etmesi gereken bir şey olana kadar günleri ilerletir.
 export function continueGame(state) {
   seedRng(state.rng);
+  const uid = state.userTeamId;
   try {
     for (let i = 0; i < 400; i++) {
       if (state.gameOver) return { reason: 'sacked' };
       if (state.phase === 'seasonEnd') return { reason: 'seasonEnd' };
-      const pending = state.inbox.find((m) => m.needsAction && !m.resolved);
+      const pending = state.inbox.find((m) => m.teamId === uid && m.needsAction && !m.resolved);
       if (pending) return { reason: 'decision', message: pending };
       const fx = userFixtureToday(state);
       if (fx) return { reason: 'userMatch', fixture: fx };
@@ -195,7 +251,7 @@ export function continueGame(state) {
       endOfDay(state);
       if (state.gameOver) return { reason: 'sacked' };
       if (state.phase === 'seasonEnd') return { reason: 'seasonEnd' };
-      const fresh = state.inbox.filter((m) => Number(m.id.slice(1)) >= before && !m.quiet);
+      const fresh = state.inbox.filter((m) => m.teamId === uid && Number(m.id.slice(1)) >= before && !m.quiet);
       if (fresh.length) return { reason: 'news', message: fresh[0] };
     }
     return { reason: 'limit' };
@@ -204,10 +260,50 @@ export function continueGame(state) {
   }
 }
 
+// Ortak kariyer: herkes hazır olduğunda bir sonraki durağa kadar ilerler.
+// Duraklar: insan takımlarının yeni maç haftası, 7 günlük ara, sezon sonu ve yeni sezon.
+export function advanceMultiplayer(state) {
+  seedRng(state.rng);
+  const setStop = (reason, extra = {}) => {
+    state.mpStop = { reason, date: state.date, ...extra };
+    return state.mpStop;
+  };
+  try {
+    if (state.phase === 'seasonEnd') {
+      state.rng = getRngState();
+      startNewSeason(state);
+      seedRng(state.rng);
+      return setStop('newSeason');
+    }
+    const startDate = state.date;
+    for (let i = 0; i < 400; i++) {
+      if (state.phase === 'seasonEnd') return setStop('seasonEnd');
+      const hfx = humanFixturesToday(state);
+      if (hfx.length) {
+        const round = Math.max(...hfx.map((f) => f.round));
+        const key = `${state.season}-${round}`;
+        if (state.mpConfirmed !== key) {
+          if (state.mpStop?.reason === 'matchday' && state.mpStop.key === key) state.mpConfirmed = key;
+          else return setStop('matchday', { key, round });
+        }
+      }
+      if (i > 0 && daysBetween(startDate, state.date) >= 7) return setStop('week');
+      for (const f of hfx) {
+        const result = simulateMatch(state, f);
+        humanMatchEffects(state, f, result);
+      }
+      playOtherMatchesToday(state);
+      endOfDay(state);
+    }
+    return setStop('week');
+  } finally {
+    state.rng = getRngState();
+  }
+}
+
 function playOtherMatchesToday(state) {
-  const uid = state.userTeamId;
   for (const f of state.fixtures) {
-    if (f.date !== state.date || f.played || f.home === uid || f.away === uid) continue;
+    if (f.date !== state.date || f.played || isHuman(state, f.home) || isHuman(state, f.away)) continue;
     simulateMatch(state, f);
     matchFinance(state, f);
   }
@@ -226,48 +322,67 @@ function matchFinance(state, f) {
   f.attendance = Math.round(home.capacity * fill);
 }
 
-// Kullanıcı maçı oynandıktan sonra çağrılır.
-export function onUserMatchPlayed(state, f, result) {
-  seedRng(state.rng);
-  const uid = state.userTeamId;
+// İnsan takımının oynadığı maçın yönetim, sakatlık ve ceza sonuçları.
+function humanMatchEffects(state, f, result) {
   matchFinance(state, f);
-  const home = f.home === uid;
-  const my = home ? f.hg : f.ag;
-  const their = home ? f.ag : f.hg;
-  const opp = home ? f.away : f.home;
-  const myR = teamRating(squadOf(state, uid));
-  const opR = teamRating(squadOf(state, opp));
-  const expected = clamp(1.35 + (myR - opR) * 0.12 + (home ? 0.25 : -0.15), 0.3, 2.6);
-  const pts = my > their ? 3 : my === their ? 1 : 0;
-  state.board.confidence = clamp(state.board.confidence + (pts - expected) * 3.2, 0, 100);
-
+  for (const [tid, home] of [[f.home, true], [f.away, false]]) {
+    if (!isHuman(state, tid)) continue;
+    const board = state.boards[tid];
+    const my = home ? f.hg : f.ag;
+    const their = home ? f.ag : f.hg;
+    const opp = home ? f.away : f.home;
+    const expected = clamp(1.35 + (teamRating(squadOf(state, tid)) - teamRating(squadOf(state, opp))) * 0.12 + (home ? 0.25 : -0.15), 0.3, 2.6);
+    const pts = my > their ? 3 : my === their ? 1 : 0;
+    board.confidence = clamp(board.confidence + (pts - expected) * 3.2, 0, 100);
+    checkSacking(state, tid);
+  }
   for (const pid of result.injured) {
     const p = state.players[pid];
-    if (p.teamId === uid && p.injury) {
-      addMessage(state, { title: `${p.name} sakatlandı`, body: `Sağlık ekibinin raporuna göre: ${p.injury.name}. Tahmini ${p.injury.days} gün sahalardan uzak kalacak.`, pid, quiet: true });
+    if (p.injury && isHuman(state, p.teamId)) {
+      addMessage(state, { teamId: p.teamId, title: `${p.name} sakatlandı`, body: `Sağlık ekibinin raporuna göre: ${p.injury.name}. Tahmini ${p.injury.days} gün sahalardan uzak kalacak.`, pid, quiet: true });
     }
   }
   for (const s of result.suspended || []) {
     const p = state.players[s.pid];
-    if (p.teamId !== uid) continue;
-    if (s.reason === 'red') addMessage(state, { title: `${p.name} cezalı duruma düştü`, body: `Gördüğü kırmızı kart nedeniyle ${s.games} maç forma giyemeyecek.`, pid: p.id, quiet: true });
-    else addMessage(state, { title: `${p.name} sarı kart cezalısı`, body: 'Dördüncü sarı kartını gördüğü için bir sonraki maçta oynayamayacak.', pid: p.id, quiet: true });
+    if (!isHuman(state, p.teamId)) continue;
+    if (s.reason === 'red') addMessage(state, { teamId: p.teamId, title: `${p.name} cezalı duruma düştü`, body: `Gördüğü kırmızı kart nedeniyle ${s.games} maç forma giyemeyecek.`, pid: p.id, quiet: true });
+    else addMessage(state, { teamId: p.teamId, title: `${p.name} sarı kart cezalısı`, body: 'Dördüncü sarı kartını gördüğü için bir sonraki maçta oynayamayacak.', pid: p.id, quiet: true });
   }
-  checkSacking(state);
+}
+
+// Tek oyunculu kullanıcı maçı oynandıktan sonra çağrılır.
+export function onUserMatchPlayed(state, f, result) {
+  seedRng(state.rng);
+  humanMatchEffects(state, f, result);
   state.rng = getRngState();
 }
 
-function checkSacking(state) {
-  const played = state.fixtures.filter((f) => f.played && (f.home === state.userTeamId || f.away === state.userTeamId)).length;
-  if (played >= 8 && state.board.confidence < 10) {
+// Görevden alma yalnızca tek oyunculu kariyerde uygulanır.
+function checkSacking(state, teamId) {
+  if (state.mp || teamId !== state.userTeamId) return;
+  const played = state.fixtures.filter((f) => f.played && (f.home === teamId || f.away === teamId)).length;
+  if (played >= 8 && state.boards[teamId].confidence < 10) {
     state.gameOver = true;
-    state.gameOverText = `Yönetim kurulu kötü sonuçlar nedeniyle görevinize son verdi. ${state.teams[state.userTeamId].name} ile ${played} maçlık bir serüveniniz oldu.`;
+    state.gameOverText = `Yönetim kurulu kötü sonuçlar nedeniyle görevinize son verdi. ${state.teams[teamId].name} ile ${played} maçlık bir serüveniniz oldu.`;
+  }
+}
+
+// Ortak kariyerde kimse diğerlerini bekletmesin diye yanıtlanmayan kararlar düşer.
+function expireDecisions(state) {
+  for (const m of state.inbox) {
+    if (!m.needsAction || m.resolved || !m.expires || m.expires > state.date) continue;
+    m.resolved = true;
+    const o = m.offerId ? state.offers.find((x) => x.id === m.offerId) : null;
+    if (o && ['pending', 'countered', 'accepted'].includes(o.status)) o.status = 'expired';
+    addMessage(state, { teamId: m.teamId, title: 'Süre doldu', body: `"${m.title}" konusunda zamanında karar verilmediği için görüşme düştü.`, quiet: true });
+    if (o && o.user && o.from !== m.teamId && isHuman(state, o.from)) {
+      addMessage(state, { teamId: o.from, title: 'Teklifiniz yanıtsız kaldı', body: `${state.players[o.pid]?.name || 'Oyuncu'} için yaptığınız teklife zamanında yanıt verilmedi.`, quiet: true });
+    }
   }
 }
 
 function endOfDay(state) {
   const d = state.date;
-  const uid = state.userTeamId;
   for (const p of Object.values(state.players)) {
     if (!p.teamId) continue;
     p.condition = Math.min(100, p.condition + 9);
@@ -277,17 +392,18 @@ function endOfDay(state) {
         const name = p.injury.name;
         p.injury = null;
         p.condition = Math.min(p.condition, 85);
-        if (p.teamId === uid) addMessage(state, { title: `${p.name} sakatlığını atlattı`, body: `${name} sonrası takımla çalışmalara başladı.`, pid: p.id, quiet: true });
+        if (isHuman(state, p.teamId)) addMessage(state, { teamId: p.teamId, title: `${p.name} sakatlığını atlattı`, body: `${name} sonrası takımla çalışmalara başladı.`, pid: p.id, quiet: true });
       }
     } else if (chance(0.00035 * (p.age > 30 ? 1.4 : 1))) {
       p.injury = randomInjury();
-      if (p.teamId === uid) {
-        addMessage(state, { title: `Antrenmanda sakatlık: ${p.name}`, body: `${p.injury.name}. Tahmini ${p.injury.days} gün sahalardan uzak kalacak.`, pid: p.id });
+      if (isHuman(state, p.teamId)) {
+        addMessage(state, { teamId: p.teamId, title: `Antrenmanda sakatlık: ${p.name}`, body: `${p.injury.name}. Tahmini ${p.injury.days} gün sahalardan uzak kalacak.`, pid: p.id });
       }
     }
   }
 
   dailyTransfers(state);
+  if (state.mp) expireDecisions(state);
   if (weekday(d) === 1) weekly(state);
   if (d.endsWith('-01')) monthly(state);
   windowMessages(state);
@@ -300,7 +416,6 @@ function endOfDay(state) {
 }
 
 function weekly(state) {
-  const uid = state.userTeamId;
   for (const team of Object.values(state.teams)) {
     const sq = squadOf(state, team.id);
     const tr = teamRating(sq);
@@ -326,13 +441,14 @@ function weekly(state) {
   for (const p of Object.values(state.players)) if (!p.teamId && !p.retired) weeklyDevelopment(p);
 
   const table = standings(state);
-  const pos = table.findIndex((r) => r.id === uid) + 1;
-  const played = table[0].p;
-  if (state.phase === 'season' && played >= 6) {
-    const diff = pos - state.board.target;
-    if (diff > 3) state.board.confidence = clamp(state.board.confidence - Math.min(3, (diff - 3) * 0.6), 0, 100);
-    else if (diff <= 0) state.board.confidence = clamp(state.board.confidence + 0.8, 0, 100);
-    checkSacking(state);
+  if (state.phase === 'season' && table[0].p >= 6) {
+    for (const tid of humansOf(state)) {
+      const board = state.boards[tid];
+      const diff = table.findIndex((r) => r.id === tid) + 1 - board.target;
+      if (diff > 3) board.confidence = clamp(board.confidence - Math.min(3, (diff - 3) * 0.6), 0, 100);
+      else if (diff <= 0) board.confidence = clamp(board.confidence + 0.8, 0, 100);
+      checkSacking(state, tid);
+    }
   }
   fillAiSquads(state);
 }
@@ -350,20 +466,22 @@ function monthly(state) {
     team.finance.season.tv += tv;
     team.finance.season.running += running;
   }
-  const uid = state.userTeamId;
-  if (state.date === `${state.season + 1}-03-01` || state.date === `${state.season + 1}-05-01`) {
-    const expiring = squadOf(state, uid).filter((p) => !p.loan && p.contractEnd <= state.season + 1);
-    if (expiring.length) {
-      addMessage(state, {
-        title: 'Sözleşmesi bitmek üzere olan oyuncular',
-        body: `Sezon sonunda sözleşmesi bitecek oyuncularınız: ${expiring.map((p) => p.name).join(', ')}. Uzatmazsanız bedelsiz olarak ayrılacaklar.`,
-      });
+  for (const tid of humansOf(state)) {
+    if (state.date === `${state.season + 1}-03-01` || state.date === `${state.season + 1}-05-01`) {
+      const expiring = squadOf(state, tid).filter((p) => !p.loan && p.contractEnd <= state.season + 1);
+      if (expiring.length) {
+        addMessage(state, {
+          teamId: tid,
+          title: 'Sözleşmesi bitmek üzere olan oyuncular',
+          body: `Sezon sonunda sözleşmesi bitecek oyuncularınız: ${expiring.map((p) => p.name).join(', ')}. Uzatmazsanız bedelsiz olarak ayrılacaklar.`,
+        });
+      }
     }
-  }
-  const balance = state.teams[uid].finance.balance;
-  if (balance < 0) {
-    state.board.confidence = clamp(state.board.confidence - 4, 0, 100);
-    addMessage(state, { title: 'Yönetim mali durumdan endişeli', body: `Kulübün kasası ekside (${fmtMoney(balance)}). Maaş yükünü azaltmanız ya da oyuncu satmanız bekleniyor.` });
+    const balance = state.teams[tid].finance.balance;
+    if (balance < 0) {
+      state.boards[tid].confidence = clamp(state.boards[tid].confidence - 4, 0, 100);
+      addMessage(state, { teamId: tid, title: 'Yönetim mali durumdan endişeli', body: `Kulübün kasası ekside (${fmtMoney(balance)}). Maaş yükünü azaltmanız ya da oyuncu satmanız bekleniyor.` });
+    }
   }
 }
 
@@ -372,15 +490,19 @@ function windowMessages(state) {
     for (const w of transferWindows(s)) {
       if (state.date === w.start) {
         addNews(state, `${w.label} açıldı.`);
-        addMessage(state, { title: `${w.label} açıldı`, body: `Transfer dönemi ${w.end.split('-').reverse().join('.')} tarihine kadar açık kalacak.`, quiet: true });
+        for (const tid of humansOf(state)) {
+          addMessage(state, { teamId: tid, title: `${w.label} açıldı`, body: `Transfer dönemi ${w.end.split('-').reverse().join('.')} tarihine kadar açık kalacak.`, quiet: true });
+        }
       }
       if (state.date === addDays(w.end, -3)) {
-        addMessage(state, { title: 'Transfer döneminin kapanmasına 3 gün kaldı', body: 'Kadronuzda eksik varsa son günleri kaçırmayın.' });
+        for (const tid of humansOf(state)) {
+          addMessage(state, { teamId: tid, title: 'Transfer döneminin kapanmasına 3 gün kaldı', body: 'Kadronuzda eksik varsa son günleri kaçırmayın.' });
+        }
       }
       if (state.date === addDays(w.end, 1)) {
         addNews(state, `${w.label} sona erdi.`);
         for (const o of state.offers) {
-          if (['pending', 'countered', 'accepted'].includes(o.status) && o.type !== undefined) {
+          if (['pending', 'countered', 'accepted'].includes(o.status)) {
             o.status = 'expired';
             for (const m of state.inbox) if (m.offerId === o.id) m.resolved = true;
           }
@@ -392,7 +514,6 @@ function windowMessages(state) {
 
 function endSeason(state) {
   const table = standings(state);
-  const uid = state.userTeamId;
   table.forEach((r, i) => {
     const team = state.teams[r.id];
     const prize = (18 - i) * 200000 + (i === 0 ? 5e6 : i === 1 ? 2.5e6 : i <= 3 ? 1e6 : 0);
@@ -405,25 +526,32 @@ function endSeason(state) {
   const topScorer = league.slice().sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists)[0];
   const topAssist = league.slice().sort((a, b) => b.stats.assists - a.stats.assists || b.stats.goals - a.stats.goals)[0];
   const best = league.filter((p) => p.stats.apps >= 15).sort((a, b) => avgRating(b) - avgRating(a))[0];
+  const label = `${state.season}-${String(state.season + 1).slice(2)}`;
 
-  const userPos = table.findIndex((r) => r.id === uid) + 1;
-  const diff = userPos - state.board.target;
-  let verdict;
-  if (diff <= 0) {
-    state.board.confidence = clamp(state.board.confidence + 25, 0, 100);
-    verdict = 'Yönetim hedefe ulaşmanızdan çok memnun. Sözleşmeniz güvende, yeni sezon için bütçeniz artırıldı.';
-    state.teams[uid].finance.balance += 3e6;
-  } else if (diff <= 2) {
-    state.board.confidence = clamp(state.board.confidence + 3, 0, 100);
-    verdict = 'Yönetim sezonu beklentilere yakın buldu. Yeni sezonda daha iyisini bekliyorlar.';
-  } else if (diff >= 5 || state.board.confidence < 25) {
-    verdict = 'Yönetim sezonu başarısız buldu ve yollarınızı ayırma kararı aldı.';
-    state.gameOver = true;
-    state.gameOverText = `${state.season}-${String(state.season + 1).slice(2)} sezonunu ${userPos}. sırada bitirdiniz. Hedef ${state.board.label} idi. ${verdict}`;
-  } else {
-    state.board.confidence = clamp(state.board.confidence - 20, 0, 100);
-    verdict = 'Yönetim hayal kırıklığı içinde. Yeni sezonda sonuçlar düzelmezse görevinize son verilebilir.';
+  const humans = {};
+  for (const tid of humansOf(state)) {
+    const board = state.boards[tid];
+    const pos = table.findIndex((r) => r.id === tid) + 1;
+    const diff = pos - board.target;
+    let verdict;
+    if (diff <= 0) {
+      board.confidence = clamp(board.confidence + 25, 0, 100);
+      verdict = 'Yönetim hedefe ulaşmanızdan çok memnun. Yeni sezon için bütçeniz artırıldı.';
+      state.teams[tid].finance.balance += 3e6;
+    } else if (diff <= 2) {
+      board.confidence = clamp(board.confidence + 3, 0, 100);
+      verdict = 'Yönetim sezonu beklentilere yakın buldu. Yeni sezonda daha iyisini bekliyorlar.';
+    } else if (!state.mp && tid === state.userTeamId && (diff >= 5 || board.confidence < 25)) {
+      verdict = 'Yönetim sezonu başarısız buldu ve yollarınızı ayırma kararı aldı.';
+      state.gameOver = true;
+      state.gameOverText = `${label} sezonunu ${pos}. sırada bitirdiniz. Hedef ${board.label} idi. ${verdict}`;
+    } else {
+      board.confidence = clamp(board.confidence - 20, 0, 100);
+      verdict = 'Yönetim hayal kırıklığı içinde. Yeni sezonda sonuçlar düzelmeli.';
+    }
+    humans[tid] = { pos, target: board.label, verdict, manager: state.managers[tid] };
   }
+  const mine = humans[state.userTeamId] || Object.values(humans)[0] || { pos: 0, target: '', verdict: '' };
 
   const summary = {
     season: state.season,
@@ -433,45 +561,50 @@ function endSeason(state) {
     topScorer: topScorer ? { pid: topScorer.id, name: topScorer.name, teamId: topScorer.teamId, v: topScorer.stats.goals } : null,
     topAssist: topAssist ? { pid: topAssist.id, name: topAssist.name, teamId: topAssist.teamId, v: topAssist.stats.assists } : null,
     best: best ? { pid: best.id, name: best.name, teamId: best.teamId, v: Math.round(avgRating(best) * 100) / 100 } : null,
-    userPos,
-    target: state.board.label,
-    verdict,
+    humans,
+    userPos: mine.pos,
+    target: mine.target,
+    verdict: mine.verdict,
   };
   state.history.push(summary);
   state.seasonSummary = summary;
-  addNews(state, `${state.teams[table[0].id].name}, ${state.season}-${String(state.season + 1).slice(2)} sezonunun şampiyonu oldu!`);
+  addNews(state, `${state.teams[table[0].id].name}, ${label} sezonunun şampiyonu oldu!`);
 }
 
 const YOUTH_FIRST = ['Emir', 'Yusuf', 'Kerem', 'Arda', 'Mert', 'Eren', 'Efe', 'Berat', 'Ömer', 'Ali', 'Deniz', 'Kaan', 'Burak', 'Emre', 'Batuhan', 'Umut', 'Can', 'Onur', 'Furkan', 'Hakan', 'Alperen', 'Barış', 'Metehan', 'Doruk', 'Egemen', 'Taha', 'Yiğit', 'Serkan', 'Tuna', 'Utku'];
 const YOUTH_LAST = ['Yılmaz', 'Kaya', 'Demir', 'Şahin', 'Çelik', 'Yıldız', 'Aydın', 'Özdemir', 'Arslan', 'Doğan', 'Kılıç', 'Aslan', 'Çetin', 'Kara', 'Koç', 'Kurt', 'Özkan', 'Şimşek', 'Polat', 'Korkmaz', 'Erdem', 'Güneş', 'Aksoy', 'Tekin', 'Bulut', 'Ünal', 'Yavuz', 'Karaca', 'Taş', 'Uçar'];
 
-// Sezon sonu özetinden sonra kullanıcı "Yeni sezon" dediğinde çağrılır.
+function removeFromTeam(team, pid) {
+  team.squad = team.squad.filter((id) => id !== pid);
+  if (team.lineup) team.lineup = team.lineup.map((id) => (id === pid ? null : id));
+  if (team.bench) team.bench = team.bench.filter((id) => id !== pid);
+}
+
+// Sezon sonu özetinden sonra yeni sezonu başlatır.
 export function startNewSeason(state) {
   seedRng(state.rng);
-  const uid = state.userTeamId;
   const newSeason = state.season + 1;
-  const departures = [];
+  const departures = {};
+  const depart = (teamId, text) => {
+    if (isHuman(state, teamId)) (departures[teamId] ||= []).push(text);
+  };
 
   for (const p of Object.values(state.players)) {
-    if (p.retired) continue;
-    if (p.loan) {
-      const back = p.loan.fromTeam && state.teams[p.loan.fromTeam];
-      const cur = state.teams[p.teamId];
-      if (cur) {
-        cur.squad = cur.squad.filter((id) => id !== p.id);
-        if (cur.lineup) cur.lineup = cur.lineup.map((id) => (id === p.id ? null : id));
-        if (cur.bench) cur.bench = cur.bench.filter((id) => id !== p.id);
-      }
-      if (back) {
-        back.squad.push(p.id);
-        p.teamId = back.id;
-      } else {
-        p.teamId = null;
-        p.abroad = p.loan.fromName;
-      }
-      if (cur && cur.id === uid) departures.push(`${p.name} (kiralık dönüşü)`);
-      p.loan = null;
+    if (p.retired || !p.loan) continue;
+    const back = p.loan.fromTeam && state.teams[p.loan.fromTeam];
+    const cur = state.teams[p.teamId];
+    if (cur) {
+      removeFromTeam(cur, p.id);
+      depart(cur.id, `${p.name} (kiralık dönüşü)`);
     }
+    if (back) {
+      back.squad.push(p.id);
+      p.teamId = back.id;
+    } else {
+      p.teamId = null;
+      p.abroad = p.loan.fromName;
+    }
+    p.loan = null;
   }
 
   for (const p of Object.values(state.players)) {
@@ -480,25 +613,20 @@ export function startNewSeason(state) {
     const team = p.teamId ? state.teams[p.teamId] : null;
     if (team && p.contractEnd <= newSeason) {
       const tr = teamRating(squadOf(state, team.id));
-      const renew = team.id !== uid && p.ovr >= tr - 6 && p.age <= 33 && chance(0.7);
+      const renew = !isHuman(state, team.id) && p.ovr >= tr - 6 && p.age <= 33 && chance(0.7);
       if (renew) {
         p.contractEnd = newSeason + randInt(1, 3);
         p.wage = expectedWage(p, team.rep, newSeason);
       } else {
-        team.squad = team.squad.filter((id) => id !== p.id);
-        if (team.lineup) team.lineup = team.lineup.map((id) => (id === p.id ? null : id));
-        if (team.bench) team.bench = team.bench.filter((id) => id !== p.id);
-        if (team.id === uid) departures.push(`${p.name} (sözleşme bitti)`);
+        removeFromTeam(team, p.id);
+        depart(team.id, `${p.name} (sözleşme bitti)`);
         p.teamId = null;
       }
     }
     if (shouldRetire(p)) {
       if (p.teamId) {
-        const t = state.teams[p.teamId];
-        t.squad = t.squad.filter((id) => id !== p.id);
-        if (t.lineup) t.lineup = t.lineup.map((id) => (id === p.id ? null : id));
-        if (t.bench) t.bench = t.bench.filter((id) => id !== p.id);
-        if (t.id === uid) departures.push(`${p.name} (futbolu bıraktı)`);
+        removeFromTeam(state.teams[p.teamId], p.id);
+        depart(p.teamId, `${p.name} (futbolu bıraktı)`);
         addNews(state, `${p.name} futbolu bıraktı.`);
       }
       p.retired = true;
@@ -524,33 +652,34 @@ export function startNewSeason(state) {
       p.wage = 40000;
       state.players[p.id] = p;
       team.squad.push(p.id);
-      if (team.id === uid) addMessage(state, { title: `Altyapıdan yeni oyuncu: ${p.name}`, body: `${p.age} yaşındaki genç oyuncu A takıma yükseltildi.`, pid: p.id, quiet: true });
+      if (isHuman(state, team.id)) addMessage(state, { teamId: team.id, title: `Altyapıdan yeni oyuncu: ${p.name}`, body: `${p.age} yaşındaki genç oyuncu A takıma yükseltildi.`, pid: p.id, quiet: true });
     }
     team.form = [];
     team.finance.season = emptyLedger();
   }
 
-  if (departures.length) {
-    addMessage(state, { title: 'Takımdan ayrılan oyuncular', body: departures.join(', '), quiet: true });
-  }
-
   state.season = newSeason;
   state.date = `${newSeason}-07-01`;
   state.fixtures = buildFixtures(state, newSeason);
-  const conf = state.board.confidence;
-  state.board = makeBoard(state);
-  state.board.confidence = clamp(Math.round((conf + 65) / 2), 30, 90);
   state.phase = 'season';
   state.seasonSummary = null;
-  state.offers = state.offers.filter((o) => ['pending', 'countered', 'accepted'].includes(o.status) === false).slice(0, 60);
+  state.mpConfirmed = null;
+  state.offers = state.offers.filter((o) => !['pending', 'countered', 'accepted'].includes(o.status)).slice(0, 60);
   fillAiSquads(state);
   fillAiSquads(state);
-  const user = state.teams[uid];
-  addMessage(state, {
-    title: `${newSeason}-${String(newSeason + 1).slice(2)} sezonu başlıyor`,
-    body: `Yönetimin yeni sezon hedefi: ${state.board.label}. Kasadaki para: ${fmtMoney(user.finance.balance)}.`,
-    quiet: true,
-  });
+
+  for (const tid of humansOf(state)) {
+    const conf = state.boards[tid]?.confidence ?? 65;
+    state.boards[tid] = makeBoard(state, tid);
+    state.boards[tid].confidence = clamp(Math.round((conf + 65) / 2), 30, 90);
+    if (departures[tid]?.length) addMessage(state, { teamId: tid, title: 'Takımdan ayrılan oyuncular', body: departures[tid].join(', '), quiet: true });
+    addMessage(state, {
+      teamId: tid,
+      title: `${newSeason}-${String(newSeason + 1).slice(2)} sezonu başlıyor`,
+      body: `Yönetimin yeni sezon hedefi: ${state.boards[tid].label}. Kasadaki para: ${fmtMoney(state.teams[tid].finance.balance)}.`,
+      quiet: true,
+    });
+  }
   state.rng = getRngState();
 }
 

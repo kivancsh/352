@@ -1,9 +1,10 @@
 // Transfer piyasası: teklifler, kiralamalar, sözleşme görüşmeleri ve yapay zekâ kulüplerinin hareketleri.
+// İnsan takımları (tek oyunculu kariyerde kullanıcı, ortak kariyerde tüm oyuncular) arasında da çalışır.
 import { FOREIGN_CLUBS } from '../data/teams.js';
 import { rand, randInt, chance, pick, weightedPick, clamp, addDays, roundMoney, fmtMoney } from './util.js';
 import { playerValue, expectedWage, POSITIONS, avgRating, POS_LONG } from './players.js';
 import { teamRating } from './tactics.js';
-import { addMessage, addNews, resolveMessage } from './inbox.js';
+import { addMessage, addNews, resolveMessage, isHuman, humansOf } from './inbox.js';
 
 const BIG = ['gs', 'fb', 'bjk', 'ts'];
 export const MAX_SQUAD = 36;
@@ -29,6 +30,8 @@ export const windowOpen = (state) => !!currentWindow(state);
 function squad(state, teamId) {
   return state.teams[teamId].squad.map((id) => state.players[id]).filter(Boolean);
 }
+
+const managerOf = (state, teamId) => state.managers?.[teamId] || state.teams[teamId].coach;
 
 export const ROLE_TR = { key: 'Vazgeçilmez', starter: 'İlk 11 oyuncusu', rotation: 'Rotasyon oyuncusu', surplus: 'Gözden çıkarılabilir' };
 
@@ -77,18 +80,23 @@ export function contractDemand(state, p, teamId) {
   return { wage, years, refuse };
 }
 
-export function proposeContract(state, { pid, wage, years, offerId = null }) {
+export function proposeContract(state, { pid, wage, years, offerId = null, actor = state.userTeamId }) {
   const p = state.players[pid];
-  const uid = state.userTeamId;
+  const uid = actor;
   const me = state.teams[uid];
   const offer = offerId ? state.offers.find((o) => o.id === offerId) : null;
+  if (offer && offer.from !== uid) return { result: 'rejected', text: 'Bu teklif size ait değil.' };
   state.negotiations = state.negotiations || {};
-  const neg = (state.negotiations[pid] = state.negotiations[pid] || { tries: 0 });
+  const key = `${uid}:${pid}`;
+  const neg = (state.negotiations[key] = state.negotiations[key] || { tries: 0 });
 
   if (offer && p.teamId !== offer.to) {
     offer.status = 'cancelled';
     resolveMessage(state, offer.id);
     return { result: 'walkaway', text: `${p.name} artık başka bir kulüpte.` };
+  }
+  if (!offer && p.teamId && p.teamId !== uid) {
+    return { result: 'rejected', text: 'Bu oyuncu başka bir kulübün sözleşmeli oyuncusu.' };
   }
   if (p.teamId !== uid && me.squad.length >= MAX_SQUAD) {
     return { result: 'rejected', text: `Kadronuz dolu (en fazla ${MAX_SQUAD} oyuncu).` };
@@ -100,7 +108,7 @@ export function proposeContract(state, { pid, wage, years, offerId = null }) {
   const d = contractDemand(state, p, uid);
   neg.tries++;
   if (d.refuse && wage < d.wage * 2) {
-    finishNegotiation(state, pid, offer, 'failed');
+    finishNegotiation(state, key, offer, 'failed');
     return { result: 'walkaway', text: d.refuse };
   }
   const yearsF = years > d.years ? (p.age >= 30 ? 0.93 : 1.02) : years < d.years ? (p.age >= 30 ? 1.08 : 0.98) : 1;
@@ -110,23 +118,23 @@ export function proposeContract(state, { pid, wage, years, offerId = null }) {
     if (offer) {
       executeTransfer(state, pid, uid, { fee: offer.fee, wage, years });
       offer.status = 'completed';
-      finishNegotiation(state, pid, offer, 'completed');
+      finishNegotiation(state, key, offer, 'completed');
       return { result: 'accepted', text: `${p.name} ${me.name} ile ${years} yıllık sözleşme imzaladı!` };
     }
     if (p.teamId === uid) {
       p.wage = wage;
       p.contractEnd = state.season + years;
       p.morale = clamp(p.morale + 8, 0, 100);
-      finishNegotiation(state, pid, null, 'completed');
+      finishNegotiation(state, key, null, 'completed');
       addNews(state, `${me.name}, ${p.name} ile sözleşme uzattı.`);
       return { result: 'accepted', text: `${p.name} sözleşmesini ${state.season + years} yazına kadar uzattı.` };
     }
     executeTransfer(state, pid, uid, { fee: 0, wage, years });
-    finishNegotiation(state, pid, null, 'completed');
+    finishNegotiation(state, key, null, 'completed');
     return { result: 'accepted', text: `Serbest oyuncu ${p.name} takımınıza katıldı!` };
   }
   if (neg.tries >= 3) {
-    finishNegotiation(state, pid, offer, 'failed');
+    finishNegotiation(state, key, offer, 'failed');
     return { result: 'walkaway', text: `${p.name} görüşmeleri sonlandırdı. Beklentisi yıllık ${fmtMoney(need)} idi.` };
   }
   if (wage >= need * 0.75) {
@@ -135,8 +143,8 @@ export function proposeContract(state, { pid, wage, years, offerId = null }) {
   return { result: 'rejected', wage: need, text: `Teklifinizi çok düşük buldu. Beklentisi yıllık ${fmtMoney(need)} civarında.` };
 }
 
-function finishNegotiation(state, pid, offer, status) {
-  if (state.negotiations) delete state.negotiations[pid];
+function finishNegotiation(state, key, offer, status) {
+  if (state.negotiations) delete state.negotiations[key];
   if (offer) {
     if (status === 'failed') offer.status = 'failed';
     resolveMessage(state, offer.id);
@@ -148,7 +156,7 @@ export function cancelNegotiation(state, offerId) {
   if (!o) return;
   o.status = 'withdrawn';
   resolveMessage(state, o.id);
-  if (state.negotiations) delete state.negotiations[o.pid];
+  if (state.negotiations) delete state.negotiations[`${o.from}:${o.pid}`];
 }
 
 // --- Transferi gerçekleştir ---
@@ -195,17 +203,17 @@ export function executeTransfer(state, pid, toId, { fee = 0, loan = false, wage 
   addNews(state, `${p.name}, ${fromName} takımından ${what} ${to.name} kulübüne geçti.`);
 }
 
-// --- Kullanıcının teklifleri ---
-export function makeBid(state, { pid, type, fee = 0, wageShare = 100 }) {
+// --- İnsan takımlarının teklifleri ---
+export function makeBid(state, { pid, type, fee = 0, wageShare = 100, actor = state.userTeamId }) {
   const p = state.players[pid];
-  const uid = state.userTeamId;
+  const uid = actor;
   const me = state.teams[uid];
   if (!p || p.retired) return { ok: false, error: 'Oyuncu bulunamadı.' };
   if (p.teamId === uid) return { ok: false, error: 'Bu oyuncu zaten takımınızda.' };
   if (!p.teamId) return { ok: true, freeAgent: true };
   if (!windowOpen(state)) return { ok: false, error: 'Transfer dönemi kapalı. Yalnızca serbest oyuncularla anlaşabilirsiniz.' };
   if (p.loan) return { ok: false, error: 'Bu oyuncu başka bir kulüpten kiralık, şu an transfer edilemez.' };
-  if (state.offers.some((o) => o.pid === pid && o.user && ['pending', 'countered', 'accepted'].includes(o.status))) {
+  if (state.offers.some((o) => o.pid === pid && o.user && o.from === uid && ['pending', 'countered', 'accepted'].includes(o.status))) {
     return { ok: false, error: 'Bu oyuncu için zaten aktif bir teklifiniz var.' };
   }
   if (type === 'transfer' && fee > me.finance.balance) return { ok: false, error: 'Bütçeniz bu teklif için yetersiz.' };
@@ -221,7 +229,7 @@ export function makeBid(state, { pid, type, fee = 0, wageShare = 100 }) {
     wageShare,
     status: 'pending',
     created: state.date,
-    respondOn: addDays(state.date, randInt(1, 2)),
+    respondOn: isHuman(state, p.teamId) ? state.date : addDays(state.date, randInt(1, 2)),
     user: true,
   };
   state.offers.unshift(offer);
@@ -233,16 +241,36 @@ function resolveUserBids(state) {
     if (!o.user || o.status !== 'pending' || o.respondOn > state.date) continue;
     const p = state.players[o.pid];
     const seller = state.teams[o.to];
+    const buyer = state.teams[o.from];
     if (p.teamId !== o.to) {
       o.status = 'cancelled';
-      addMessage(state, { title: `${p.name} için teklifiniz geçersiz`, body: 'Oyuncu bu arada başka bir kulübe transfer oldu.' });
+      addMessage(state, { teamId: o.from, title: `${p.name} için teklifiniz geçersiz`, body: 'Oyuncu bu arada başka bir kulübe transfer oldu.' });
       continue;
     }
+
+    // Satıcı da bir insan teknik direktörse kararı o verir.
+    if (isHuman(state, o.to)) {
+      if (o.notified) continue;
+      o.notified = true;
+      const what = o.type === 'loan'
+        ? `kiralamak istiyor (maaşın %${o.wageShare}'ını ödeyecekler${o.fee ? `, kiralama bedeli ${fmtMoney(o.fee)}` : ''})`
+        : `için ${fmtMoney(o.fee)} bonservis teklif ediyor`;
+      addMessage(state, {
+        teamId: o.to,
+        title: `${buyer.name}, ${p.name} için teklif yaptı`,
+        body: `${managerOf(state, o.from)} yönetimindeki ${buyer.name}, ${p.name} (${POS_LONG[p.pos]}, ${p.age}) ${o.type === 'loan' ? 'oyuncusunu ' : ''}${what}. Oyuncunun tahmini piyasa değeri ${fmtMoney(playerValue(p, state.season))}.`,
+        kind: 'incoming', needsAction: true, offerId: o.id, pid: p.id,
+      });
+      addMessage(state, { teamId: o.from, title: `Teklifiniz ${seller.name} yönetimine iletildi`, body: `${managerOf(state, o.to)} teklifinizi değerlendiriyor.`, pid: p.id, quiet: true });
+      continue;
+    }
+
     if (o.type === 'transfer') {
       const ask = askingPrice(state, p, o.from);
       if (o.fee >= ask) {
         o.status = 'accepted';
         addMessage(state, {
+          teamId: o.from,
           title: `${seller.name} teklifinizi kabul etti`,
           body: `${p.name} için ${fmtMoney(o.fee)} bonservis teklifiniz kabul edildi. Şimdi oyuncuyla kişisel şartları konuşmalısınız.`,
           kind: 'negotiate', needsAction: true, offerId: o.id, pid: p.id,
@@ -251,6 +279,7 @@ function resolveUserBids(state) {
         o.status = 'countered';
         o.counter = ask;
         addMessage(state, {
+          teamId: o.from,
           title: `${seller.name} karşı teklif yaptı`,
           body: `${p.name} için ${fmtMoney(o.fee)} teklifinizi yetersiz buldular. ${fmtMoney(ask)} ödemeye razı olursanız oyuncuyu bırakacaklar.`,
           kind: 'counter', needsAction: true, offerId: o.id, pid: p.id,
@@ -258,6 +287,7 @@ function resolveUserBids(state) {
       } else {
         o.status = 'rejected';
         addMessage(state, {
+          teamId: o.from,
           title: `${seller.name} teklifinizi reddetti`,
           body: `${p.name} için ${fmtMoney(o.fee)} teklifinizi değerlendirmeye bile almadılar. Oyuncunun kulüpteki rolü: ${ROLE_TR[playerRole(state, p)]}.`,
           pid: p.id,
@@ -267,24 +297,25 @@ function resolveUserBids(state) {
       const role = playerRole(state, p);
       if (role === 'key' || (role === 'starter' && p.age >= 23)) {
         o.status = 'rejected';
-        addMessage(state, { title: `${seller.name} kiralama teklifini reddetti`, body: `${p.name} takımın önemli oyuncularından, kiralık verilmeyecek.`, pid: p.id });
+        addMessage(state, { teamId: o.from, title: `${seller.name} kiralama teklifini reddetti`, body: `${p.name} takımın önemli oyuncularından, kiralık verilmeyecek.`, pid: p.id });
         continue;
       }
       let need = role === 'starter' ? 80 : role === 'rotation' ? 50 : 25;
       if (o.fee >= playerValue(p, state.season) * 0.1) need -= 20;
       if (o.wageShare >= need) {
-        if (o.fee > state.teams[o.from].finance.balance) {
+        if (o.fee > buyer.finance.balance) {
           o.status = 'failed';
-          addMessage(state, { title: 'Kiralama gerçekleşmedi', body: 'Kiralama bedeli için bütçeniz yetersiz kaldı.' });
+          addMessage(state, { teamId: o.from, title: 'Kiralama gerçekleşmedi', body: 'Kiralama bedeli için bütçeniz yetersiz kaldı.' });
           continue;
         }
         executeTransfer(state, p.id, o.from, { fee: o.fee, loan: true, wageShare: o.wageShare });
         o.status = 'completed';
-        addMessage(state, { title: `${p.name} kiralık olarak takımınızda`, body: `${seller.name} ile anlaşma sağlandı. Oyuncu sezon sonuna kadar sizde, maaşının %${o.wageShare}'ını siz ödeyeceksiniz.`, pid: p.id });
+        addMessage(state, { teamId: o.from, title: `${p.name} kiralık olarak takımınızda`, body: `${seller.name} ile anlaşma sağlandı. Oyuncu sezon sonuna kadar sizde, maaşının %${o.wageShare}'ını siz ödeyeceksiniz.`, pid: p.id });
       } else {
         o.status = 'countered';
         o.counterShare = need;
         addMessage(state, {
+          teamId: o.from,
           title: `${seller.name} kiralama için şart koştu`,
           body: `${p.name} maaşının en az %${need}'ını üstlenirseniz kiralamayı kabul edecekler.`,
           kind: 'counterLoan', needsAction: true, offerId: o.id, pid: p.id,
@@ -294,13 +325,20 @@ function resolveUserBids(state) {
   }
 }
 
-export function respondCounter(state, offerId, accept) {
+// Alıcı takım karşı teklife yanıt verir.
+export function respondCounter(state, offerId, accept, actor = null) {
   const o = state.offers.find((x) => x.id === offerId);
-  resolveMessage(state, offerId);
   if (!o) return { text: 'Teklif bulunamadı.' };
+  if (actor && o.from !== actor) return { text: 'Bu teklif size ait değil.' };
+  resolveMessage(state, offerId);
   const p = state.players[o.pid];
+  const buyer = state.teams[o.from];
+  const seller = state.teams[o.to];
+  const humanSeller = isHuman(state, o.to);
+
   if (!accept) {
     o.status = 'withdrawn';
+    if (humanSeller) addMessage(state, { teamId: o.to, title: `${buyer.name} karşı teklifinizi kabul etmedi`, body: `${p.name} için görüşmeler sona erdi.`, pid: p.id, quiet: true });
     return { text: 'Görüşmelerden çekildiniz.' };
   }
   if (p.teamId !== o.to) {
@@ -313,13 +351,28 @@ export function respondCounter(state, offerId, accept) {
     o.status = 'completed';
     return { text: `${p.name} kiralık olarak takımınıza katıldı.` };
   }
-  if (o.counter > state.teams[o.from].finance.balance) {
+  if (o.counter > buyer.finance.balance) {
     o.status = 'failed';
+    if (humanSeller) addMessage(state, { teamId: o.to, title: 'Transfer gerçekleşmedi', body: `${buyer.name} istediğiniz bedeli karşılayamadı.`, pid: p.id, quiet: true });
     return { text: 'Bütçeniz bu bedel için yetersiz.' };
   }
   o.fee = o.counter;
+
+  // İki insan teknik direktör anlaştıysa oyuncu doğrudan geçer.
+  if (humanSeller) {
+    if (buyer.squad.length >= MAX_SQUAD) {
+      o.status = 'failed';
+      return { text: `Kadronuz dolu (en fazla ${MAX_SQUAD} oyuncu).` };
+    }
+    o.status = 'completed';
+    executeTransfer(state, p.id, o.from, { fee: o.fee, wage: Math.max(p.wage, expectedWage(p, buyer.rep, state.season)), years: 3 });
+    addMessage(state, { teamId: o.to, title: `${buyer.name} karşı teklifinizi kabul etti`, body: `${p.name}, ${fmtMoney(o.fee)} bedelle ${buyer.name} takımına satıldı.`, pid: p.id });
+    return { text: `${p.name}, ${fmtMoney(o.fee)} bedelle takımınıza katıldı.` };
+  }
+
   o.status = 'accepted';
   addMessage(state, {
+    teamId: o.from,
     title: `${p.name} ile sözleşme görüşmesi`,
     body: `Kulüpler ${fmtMoney(o.fee)} bedelde anlaştı. Şimdi oyuncuyla kişisel şartları konuşmalısınız.`,
     kind: 'negotiate', needsAction: true, offerId: o.id, pid: p.id,
@@ -327,10 +380,9 @@ export function respondCounter(state, offerId, accept) {
   return { text: 'Bonservis konusunda anlaşıldı. Gelen kutusundan sözleşme görüşmesini başlatın.' };
 }
 
-// --- Kullanıcının oyuncularına gelen teklifler ---
-function aiOffersForUser(state) {
+// --- İnsan takımlarının oyuncularına gelen yapay zekâ teklifleri ---
+function aiOffersForTeam(state, uid) {
   if (!chance(0.06)) return;
-  const uid = state.userTeamId;
   const me = state.teams[uid];
   const sq = squad(state, uid).filter((p) => !p.loan && !p.injury);
   if (!sq.length) return;
@@ -339,7 +391,7 @@ function aiOffersForUser(state) {
   const value = playerValue(target, state.season);
 
   if (target.age <= 23 && target.stats.apps <= 2 && chance(0.5)) {
-    const clubs = Object.values(state.teams).filter((t) => t.id !== uid && t.rep < me.rep);
+    const clubs = Object.values(state.teams).filter((t) => !isHuman(state, t.id) && t.rep < me.rep);
     if (!clubs.length) return;
     const club = pick(clubs);
     const o = {
@@ -348,6 +400,7 @@ function aiOffersForUser(state) {
     };
     state.offers.unshift(o);
     addMessage(state, {
+      teamId: uid,
       title: `${club.name}, ${target.name} için kiralama istiyor`,
       body: `${club.name}, forma şansı bulamayan ${target.name} oyuncusunu sezon sonuna kadar kiralamak istiyor. Maaşının %${o.wageShare}'ını ödeyecekler.`,
       kind: 'incoming', needsAction: true, offerId: o.id, pid: target.id,
@@ -357,7 +410,7 @@ function aiOffersForUser(state) {
 
   const fee = roundMoney(value * (0.8 + rand() * 0.45));
   const league = Object.values(state.teams).filter(
-    (t) => t.id !== uid && t.finance.balance >= fee && t.rep >= me.rep - 12 && teamRating(squad(state, t.id)) <= target.ovr + 4,
+    (t) => !isHuman(state, t.id) && t.finance.balance >= fee && t.rep >= me.rep - 12 && teamRating(squad(state, t.id)) <= target.ovr + 4,
   );
   const foreign = FOREIGN_CLUBS.filter((c) => c.rep >= me.rep - 8 && 12e6 * c.money * (c.rep / 80) ** 3 >= fee);
   let fromId = null;
@@ -373,25 +426,66 @@ function aiOffersForUser(state) {
   state.offers.unshift(o);
   const clubName = fromForeign || state.teams[fromId].name;
   addMessage(state, {
+    teamId: uid,
     title: `${clubName}, ${target.name} için ${fmtMoney(fee)} teklif etti`,
     body: `${clubName}, ${target.name} (${POS_LONG[target.pos]}, ${target.age}) için ${fmtMoney(fee)} bonservis teklif etti. Oyuncunun tahmini piyasa değeri ${fmtMoney(value)}.`,
     kind: 'incoming', needsAction: true, offerId: o.id, pid: target.id,
   });
 }
 
-export function respondIncoming(state, offerId, action, counterFee = 0) {
+// Satıcı takım (insan) gelen teklife yanıt verir.
+export function respondIncoming(state, offerId, action, counterFee = 0, actor = null) {
   const o = state.offers.find((x) => x.id === offerId);
-  resolveMessage(state, offerId);
   if (!o) return { text: 'Teklif bulunamadı.' };
+  if (actor && o.to !== actor) return { text: 'Bu teklif size ait değil.' };
+  resolveMessage(state, offerId);
   const p = state.players[o.pid];
-  const uid = state.userTeamId;
-  const clubName = o.fromForeign || state.teams[o.from].name;
-  const clubRep = o.fromForeign ? FOREIGN_CLUBS.find((c) => c.name === o.fromForeign)?.rep ?? 70 : state.teams[o.from].rep;
+  const uid = o.to;
+  const seller = state.teams[uid];
 
   if (p.teamId !== uid) {
     o.status = 'cancelled';
     return { text: 'Oyuncu artık takımınızda değil.' };
   }
+
+  // Teklifi yapan başka bir insan teknik direktör
+  if (o.user && isHuman(state, o.from)) {
+    const buyer = state.teams[o.from];
+    if (action === 'accept') {
+      if (buyer.finance.balance < o.fee) {
+        o.status = 'failed';
+        addMessage(state, { teamId: o.from, title: 'Transfer gerçekleşmedi', body: `${p.name} için teklifiniz kabul edildi ama kasanızda yeterli para kalmamıştı.`, pid: p.id });
+        return { text: `${buyer.name} bonservis bedelini karşılayamadı, transfer gerçekleşmedi.` };
+      }
+      if (buyer.squad.length >= MAX_SQUAD) {
+        o.status = 'failed';
+        return { text: `${buyer.name} kadrosu dolu olduğu için transfer gerçekleşmedi.` };
+      }
+      o.status = 'completed';
+      if (o.type === 'loan') executeTransfer(state, p.id, o.from, { fee: o.fee, loan: true, wageShare: o.wageShare });
+      else executeTransfer(state, p.id, o.from, { fee: o.fee, wage: Math.max(p.wage, expectedWage(p, buyer.rep, state.season)), years: 3 });
+      addMessage(state, { teamId: o.from, title: `${seller.name} teklifinizi kabul etti`, body: `${p.name} artık ${o.type === 'loan' ? 'kiralık olarak ' : ''}takımınızda.`, pid: p.id });
+      return { text: o.type === 'loan' ? `${p.name}, ${buyer.name} takımına kiralandı.` : `${p.name}, ${fmtMoney(o.fee)} bedelle ${buyer.name} takımına satıldı.` };
+    }
+    if (action === 'reject') {
+      o.status = 'rejected';
+      addMessage(state, { teamId: o.from, title: `${seller.name} teklifinizi reddetti`, body: `${managerOf(state, uid)}, ${p.name} için yaptığınız teklifi kabul etmedi.`, pid: p.id });
+      return { text: 'Teklif reddedildi.' };
+    }
+    if (o.type !== 'transfer') return { text: 'Kiralama tekliflerine karşı teklif yapılamaz.' };
+    o.status = 'countered';
+    o.counter = roundMoney(counterFee);
+    addMessage(state, {
+      teamId: o.from,
+      title: `${seller.name} karşı teklif yaptı`,
+      body: `${managerOf(state, uid)}, ${p.name} için ${fmtMoney(o.counter)} istiyor.`,
+      kind: 'counter', needsAction: true, offerId: o.id, pid: p.id,
+    });
+    return { text: `Karşı teklifiniz (${fmtMoney(o.counter)}) ${buyer.name} yönetimine iletildi.` };
+  }
+
+  const clubName = o.fromForeign || state.teams[o.from].name;
+  const clubRep = o.fromForeign ? FOREIGN_CLUBS.find((c) => c.name === o.fromForeign)?.rep ?? 70 : state.teams[o.from].rep;
 
   const complete = (fee) => {
     o.fee = fee;
@@ -407,7 +501,7 @@ export function respondIncoming(state, offerId, action, counterFee = 0) {
   }
   if (action === 'reject') {
     o.status = 'rejected';
-    if (o.type === 'transfer' && clubRep > state.teams[uid].rep + 3) {
+    if (o.type === 'transfer' && clubRep > seller.rep + 3) {
       p.morale = clamp(p.morale - 12, 0, 100);
       return { text: `Teklif reddedildi. ${p.name} daha büyük bir kulübe gidememekten dolayı hayal kırıklığına uğradı.` };
     }
@@ -425,6 +519,7 @@ export function respondIncoming(state, offerId, action, counterFee = 0) {
     o.fee = roundMoney((o.fee + Math.min(counterFee, maxPay * 1.05)) / 2);
     o.status = 'pending';
     addMessage(state, {
+      teamId: uid,
       title: `${clubName} teklifini ${fmtMoney(o.fee)} seviyesine çıkardı`,
       body: `${clubName}, ${p.name} için teklifini ${fmtMoney(o.fee)} olarak güncelledi. Bu son teklifleri olabilir.`,
       kind: 'incoming', needsAction: true, offerId: o.id, pid: p.id,
@@ -438,8 +533,7 @@ export function respondIncoming(state, offerId, action, counterFee = 0) {
 // --- Yapay zekâ kulüplerinin kendi aralarındaki hareketler ---
 function aiMarket(state) {
   if (!chance(0.2)) return;
-  const uid = state.userTeamId;
-  const buyers = Object.values(state.teams).filter((t) => t.id !== uid && t.finance.balance > 400000 && t.squad.length < 32);
+  const buyers = Object.values(state.teams).filter((t) => !isHuman(state, t.id) && t.finance.balance > 400000 && t.squad.length < 32);
   if (!buyers.length) return;
   const buyer = weightedPick(buyers, (t) => t.finance.balance);
   const bsq = squad(state, buyer.id);
@@ -450,7 +544,7 @@ function aiMarket(state) {
   const budget = buyer.finance.balance * 0.6;
   const candidates = Object.values(state.players).filter(
     (p) => !p.retired && p.pos === need.pos && p.ovr > need.best + 1 && p.ovr <= br + 8 && !p.injury && !p.loan
-      && p.teamId !== buyer.id && p.teamId !== uid && (p.teamId || !p.abroad),
+      && p.teamId !== buyer.id && !isHuman(state, p.teamId) && (p.teamId || !p.abroad),
   );
   if (!candidates.length) return;
   const target = weightedPick(candidates, (p) => p.ovr - need.best);
@@ -467,8 +561,7 @@ function aiMarket(state) {
 
 function foreignSales(state) {
   if (!chance(0.03)) return;
-  const uid = state.userTeamId;
-  const cands = Object.values(state.players).filter((p) => p.teamId && p.teamId !== uid && !p.loan && p.ovr >= 74 && p.age <= 29);
+  const cands = Object.values(state.players).filter((p) => p.teamId && !isHuman(state, p.teamId) && !p.loan && p.ovr >= 74 && p.age <= 29);
   if (!cands.length) return;
   const target = weightedPick(cands, (p) => p.ovr - 70);
   const team = state.teams[target.teamId];
@@ -481,14 +574,13 @@ function foreignSales(state) {
 
 function aiLoans(state) {
   if (!chance(0.05)) return;
-  const uid = state.userTeamId;
-  const bigs = Object.values(state.teams).filter((t) => t.id !== uid && t.rep >= 70);
+  const bigs = Object.values(state.teams).filter((t) => !isHuman(state, t.id) && t.rep >= 70);
   if (!bigs.length) return;
   const owner = pick(bigs);
   const youngsters = squad(state, owner.id).filter((p) => !p.loan && p.age <= 22 && playerRole(state, p) === 'surplus' && p.stats.apps <= 3);
   if (!youngsters.length || owner.squad.length <= 24) return;
   const p = pick(youngsters);
-  const takers = Object.values(state.teams).filter((t) => t.id !== uid && t.rep < owner.rep - 8 && t.squad.length < 30);
+  const takers = Object.values(state.teams).filter((t) => !isHuman(state, t.id) && t.rep < owner.rep - 8 && t.squad.length < 30);
   if (!takers.length) return;
   executeTransfer(state, p.id, pick(takers).id, { loan: true, wageShare: randInt(3, 8) * 10 });
 }
@@ -497,7 +589,7 @@ export function dailyTransfers(state) {
   resolveUserBids(state);
   const w = currentWindow(state);
   if (!w) return;
-  aiOffersForUser(state);
+  for (const uid of humansOf(state)) aiOffersForTeam(state, uid);
   aiMarket(state);
   foreignSales(state);
   aiLoans(state);
@@ -505,9 +597,8 @@ export function dailyTransfers(state) {
 
 // Kadrosu eksik kalan yapay zekâ takımlarını serbest oyuncularla tamamlar.
 export function fillAiSquads(state) {
-  const uid = state.userTeamId;
   for (const team of Object.values(state.teams)) {
-    if (team.id === uid) continue;
+    if (isHuman(state, team.id)) continue;
     const sq = squad(state, team.id);
     const gks = sq.filter((p) => p.pos === 'GK').length;
     if (sq.length >= 23 && gks >= 2) continue;

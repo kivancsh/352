@@ -1,0 +1,47 @@
+rules_version = '2';
+
+// Süper Lig Menajer ortak kariyer kuralları.
+// - Giriş yapmış (anonim) herkes lig koduyla lig bilgisini okuyabilir (katılmak için gerekli).
+// - Lige yalnızca kendini ekleyerek katılınabilir; lig verisini sadece üyeler değiştirebilir.
+// - Dünya durumu ve işlemler yalnızca lig üyelerine açıktır.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(code) {
+      return signedIn()
+        && request.auth.uid in get(/databases/$(database)/documents/leagues/$(code)).data.memberUids;
+    }
+
+    match /leagues/{code} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.memberUids == [request.auth.uid];
+
+      allow update: if signedIn() && (
+        request.auth.uid in resource.data.memberUids
+        || (
+          !(request.auth.uid in resource.data.memberUids)
+          && request.auth.uid in request.resource.data.memberUids
+          && request.resource.data.memberUids.size() == resource.data.memberUids.size() + 1
+          && resource.data.memberUids.size() < 8
+        )
+      );
+
+      allow delete: if false;
+
+      match /snaps/{snapId} {
+        allow read, write: if isMember(code);
+      }
+
+      match /actions/{actionId} {
+        allow read, update, delete: if isMember(code);
+        allow create: if isMember(code) && request.resource.data.uid == request.auth.uid;
+      }
+    }
+  }
+}
