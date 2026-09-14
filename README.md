@@ -23,6 +23,24 @@
 - **Sezon sonu:** Şampiyon, gol kralı, asist kralı ve sezonun oyuncusu belirlenir. Ardından yeni sezon başlar: sözleşmeler biter, oyuncular yaşlanır ya da emekli olur, altyapıdan gençler gelir.
 - **Kayıt:** Oyun her adımda telefonundaki tarayıcıya otomatik kaydedilir.
 
+## 👥 Arkadaşlarla ortak kariyer
+
+Aynı ligde her arkadaşın bir takımı yönetir (en fazla 8 kişi).
+
+1. Oyunu aç → **Arkadaşlarla oyna**.
+2. Adını yaz, takımını seç, **Yeni lig kur**. 6 haneli bir lig kodu çıkar.
+3. **Davet linkini paylaş** ile linki arkadaşlarına gönder. Onlar linke tıklayıp kendi takımlarını seçerek katılır.
+4. Herkes lobiye gelince kurucu **Ligi başlat**'a basar.
+5. Herkes kadrosunu, taktiğini ve transferlerini ayarlayıp **Hazırım**'a bastığında oyun bir sonraki maç haftasına (en fazla 7 gün) ilerler. Maçlar, her teknik direktörün ayarladığı kadro ve taktikle oynanır.
+
+Bilmen gerekenler:
+
+- Birbirinizin oyuncularına teklif yapabilir, karşı teklif verip pazarlık edebilirsiniz.
+- Yanıtlanmayan teklifler 7 oyun gününde düşer; kimse diğerlerini sonsuza kadar bekletemez.
+- Ligi o an çevrimiçi olan oyunculardan biri işler. Herkes çıkarsa lig bekler, biri uygulamayı açınca kaldığı yerden devam eder.
+- Ortak kariyerde görevden alınma yoktur.
+- Lig verisi Firebase'de tutulur; tek oyunculu kariyer ise yine sadece telefonunda kalır.
+
 ## Telefonda uygulama olarak kurmak
 
 Oyunun tek ve sabit bir adresi var: **https://kivancsh.github.io/super-lig-menajer/**
