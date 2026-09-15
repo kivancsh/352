@@ -350,6 +350,7 @@ function monthlyAwards(state) {
     addNews(state, `🎩 ${month} ayının teknik direktörü: ${coach} (${state.teams[tid].name}, ${x.n} maçta ${x.pts} puan).`, 'award', [tid], `${month} ayının teknik direktörü`);
     if (isHuman(state, tid)) {
       const c = careerOf(state, tid);
+      if (!c) return;
       c.awards.push({ season: state.season, name: `${month} ayının teknik direktörü`, teamId: tid });
       state.boards[tid].confidence = clamp(state.boards[tid].confidence + 4, 0, 100);
       addFans(state, tid, 4);

@@ -175,6 +175,11 @@ export function rebuildFromOld(old) {
   if (!old.mp) {
     s.mp = null;
     s.manager = old.manager || members[0].name;
+    // Tek oyunculu kariyerde kariyer kaydı takım yerine "me" anahtarında tutulur.
+    const tid = members[0].teamId;
+    if (s.career[tid] && !s.career.me) s.career.me = s.career[tid];
+    delete s.career[tid];
+    initCareer(s, tid);
   }
   return s;
 }

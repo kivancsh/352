@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>3-5-2 · Ekran görüntüsü</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <div id="app"></div>
+  <div id="modal" hidden></div>
+  <div id="toast" hidden></div>
+  <script type="module">
+    // Tanıtım görselleri için: Galatasaray kariyerini bir Şampiyonlar Ligi gecesine kadar ilerletir ve istenen ekranı açar.
+    // Kullanım: tools/shot.html?view=home|live|ucl|news|press|tactics
+    import { rebuildFromOld, continueGame, onUserMatchPlayed } from '../js/engine/game.js';
+    import { Match } from '../js/engine/match.js';
+    import { seedRng, getRngState } from '../js/engine/util.js';
+    import { gzipB64 } from '../js/online/online.js';
+
+    const view = new URLSearchParams(location.search).get('view') || 'home';
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    localStorage.clear();
+    localStorage.setItem('slm-install-hidden', '1');
+    const state = rebuildFromOld({ humans: ['gs'], managers: { gs: 'Kıvanç' }, manager: 'Kıvanç', rng: 20260915 });
+
+    // İlk maçları oynat; Şampiyonlar Ligi 2. maç gününde dur
+    let stopFx = null;
+    for (let guard = 0; guard < 200 && !stopFx; guard++) {
+      const r = continueGame(state);
+      if (r.reason === 'userMatch') {
+        if (r.fixture.comp === 'UCL' && r.fixture.round === 2) { stopFx = r.fixture; break; }
+        seedRng(state.rng);
+        const m = new Match(state, r.fixture, { autoUser: true });
+        m.playToEnd();
+        const res = m.apply();
+        state.rng = getRngState();
+        onUserMatchPlayed(state, r.fixture, res);
+      } else if (r.reason === 'decision') {
+        r.message.resolved = true;
+        const o = state.offers.find((x) => x.id === r.message.offerId);
+        if (o && ['pending', 'countered', 'accepted'].includes(o.status)) o.status = 'rejected';
+      } else if (r.reason !== 'news') break;
+    }
+    for (const m of state.inbox) m.read = true;
+
+    localStorage.setItem('slm-save-v3', `gz1:${await gzipB64(JSON.stringify(state))}`);
+    await import('../js/main.js');
+    for (let i = 0; i < 100 && !window.__slm?.state; i++) await sleep(50);
+    const A = window.__slm.actions;
+    A.resume();
+    await sleep(100);
+
+    if (view === 'home') A.tab({ tab: 'home' });
+    if (view === 'ucl') A.goComp({ v: 'UCL' });
+    if (view === 'news') { A.tab({ tab: 'news' }); A.newsCat({ v: 'europe' }); }
+    if (view === 'tactics') A.goTactics();
+    if (view === 'press') { A.tab({ tab: 'home' }); A.press(); A.pressPick({ q: 0, v: 'bold' }); A.pressPick({ q: 1, v: 'praise' }); }
+    if (view === 'live' && stopFx) {
+      A.live({ id: stopFx.id });
+      A.mSpeed({ v: 4 });
+      await sleep(4500);   // devre arasına kadar
+      A.mPause();          // ikinci yarıyı başlat
+      await sleep(1700);
+      A.mPause();          // görüntü için durdur
+    }
+    window.scrollTo(0, 0);
+    document.title = `hazır:${view}`;
+  </script>
+</body>
+</html>
