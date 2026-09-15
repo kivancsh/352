@@ -370,8 +370,8 @@ function renderStart() {
     <div class="shell" style="padding-bottom:0">
       <main>
         <div class="hero">
-          <div class="ball">⚽</div>
-          <h1>Süper Lig Menajer</h1>
+          <img class="logo" src="icons/logo.svg" alt="3-5-2 logosu" width="96" height="96">
+          <h1>3-5-2</h1>
           <p>Süper Lig, 1. Lig, Türkiye Kupası ve Avrupa kupaları · Gerçek kulüpler ve kadrolar</p>
         </div>
         ${installBanner()}
@@ -1876,10 +1876,10 @@ async function fetchJoinInfo() {
 async function shareInvite() {
   const code = session.code;
   const url = leagueLink(code);
-  const text = `Süper Lig Menajer'de ortak kariyere katıl! Lig kodu: ${code}`;
+  const text = `3-5-2'de ortak kariyere katıl! Lig kodu: ${code}`;
   if (navigator.share) {
     try {
-      await navigator.share({ title: 'Süper Lig Menajer', text, url });
+      await navigator.share({ title: '3-5-2', text, url });
       return;
     } catch (e) {
       if (e.name === 'AbortError') return;
@@ -2339,7 +2339,7 @@ async function boot() {
     return;
   }
 
-  $app.innerHTML = '<div class="shell"><main><div class="hero"><div class="ball">⚽</div><h1>Süper Lig Menajer</h1><p><span class="spin"></span> Yükleniyor…</p></div></main></div>';
+  $app.innerHTML = '<div class="shell"><main><div class="hero"><img class="logo" src="icons/logo.svg" alt="3-5-2 logosu" width="96" height="96"><h1>3-5-2</h1><p><span class="spin"></span> Yükleniyor…</p></div></main></div>';
   savedGame = await loadSave();
   if (savedGame?.state) {
     state = savedGame.state;

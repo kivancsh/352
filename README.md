@@ -1,4 +1,6 @@
-# ⚽ Süper Lig Menajer
+# 3-5-2
+
+<img src="icons/logo.svg" alt="3-5-2 logosu" width="120">
 
 Türkiye'den Avrupa'ya uzanan bir teknik direktörlük oyunu. 2026-27 sezonuyla başlar ve sezonlar bitmeden devam eder. Telefonda tarayıcıdan oynanır, kurulum gerektirmez. İstersen ana ekrana ekleyip uygulama gibi de kullanabilirsin.
 
@@ -98,7 +100,7 @@ Oyunun tek ve sabit bir adresi var: **https://kivancsh.github.io/super-lig-menaj
 1. Linki telefonda aç.
 2. **iPhone (Safari):** Paylaş düğmesi → *Ana Ekrana Ekle*
    **Android (Chrome):** Oyundaki *Uygulamayı yükle* düğmesi ya da ⋮ menüsü → *Ana ekrana ekle*
-3. Bundan sonra oyunu ana ekrandaki **SL Menajer** simgesinden aç.
+3. Bundan sonra oyunu ana ekrandaki **3-5-2** simgesinden aç.
 
 Kayıt ve devam etme:
 

@@ -378,3 +378,6 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .star-btn.on { color: var(--warn); border-color: var(--warn); }
 .upcoming { font-size: 12px; color: var(--muted); }
 .upcoming b { color: var(--text, inherit); }
+
+/* Logo */
+.hero .logo { width: 96px; height: 96px; border-radius: 24px; display: block; margin: 0 auto 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }

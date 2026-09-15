@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Süper Lig Menajer 2026-27",
-  "short_name": "SL Menajer",
-  "description": "2026-27 Türkiye Süper Lig teknik direktörlük oyunu",
+  "name": "3-5-2",
+  "short_name": "3-5-2",
+  "description": "Süper Lig'den Avrupa kupalarına teknik direktörlük oyunu",
   "lang": "tr",
   "start_url": "./",
   "scope": "./",

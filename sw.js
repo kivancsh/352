@@ -1,11 +1,12 @@
 // Çevrimdışı oynanabilmesi için basit service worker.
 // Önce ağdan dener (güncellemeler hemen gelsin), ağ yoksa önbellekten sunar.
-const CACHE = 'slm-v6';
+const CACHE = 'slm-v7';
 const ASSETS = [
   './',
   'index.html',
   'css/style.css',
   'manifest.webmanifest',
+  'icons/logo.svg',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
