@@ -423,7 +423,7 @@ function renderStart() {
         </div>
         <p class="footer-note">
           Kadrolar Eylül 2026 itibarıyla Wikipedia/Wikidata ve kulüp duyurularından derlenmiştir. Oyuncu güç değerleri bu oyuna özel tahminlerdir.<br>
-          Resmî bir ürün değildir; kulüp, lig ve UEFA markalarıyla bağlantısı yoktur. Açık kaynak: <a href="https://github.com/kivancsh/super-lig-menajer" target="_blank" rel="noopener">GitHub</a>
+          Resmî bir ürün değildir; kulüp, lig ve UEFA markalarıyla bağlantısı yoktur. Açık kaynak: <a href="https://github.com/kivancsh/352" target="_blank" rel="noopener">GitHub</a>
         </p>
       </main>
     </div>`;

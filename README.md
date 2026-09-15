@@ -4,7 +4,7 @@
 
 Türkiye'den Avrupa'ya uzanan bir teknik direktörlük oyunu. 2026-27 sezonuyla başlar ve sezonlar bitmeden devam eder. Telefonda tarayıcıdan oynanır, kurulum gerektirmez. İstersen ana ekrana ekleyip uygulama gibi de kullanabilirsin.
 
-**Oyna:** https://kivancsh.github.io/super-lig-menajer/
+**Oyna:** https://kivancsh.github.io/352/
 
 ## Neler var?
 
@@ -95,7 +95,7 @@ Bilmen gerekenler:
 
 ## Telefonda uygulama olarak kurmak
 
-Oyunun tek ve sabit bir adresi var: **https://kivancsh.github.io/super-lig-menajer/**
+Oyunun tek ve sabit bir adresi var: **https://kivancsh.github.io/352/**
 
 1. Linki telefonda aç.
 2. **iPhone (Safari):** Paylaş düğmesi → *Ana Ekrana Ekle*
