@@ -1,46 +1,95 @@
-# ⚽ Süper Lig Menajer 2026-27
+# ⚽ Süper Lig Menajer
 
-2026-27 Trendyol Süper Lig için yapılmış bir teknik direktörlük oyunu. Telefonda tarayıcıdan oynanır, kurulum gerektirmez. İstersen ana ekrana ekleyip uygulama gibi de kullanabilirsin.
+Türkiye'den Avrupa'ya uzanan bir teknik direktörlük oyunu. 2026-27 sezonuyla başlar ve sezonlar bitmeden devam eder. Telefonda tarayıcıdan oynanır, kurulum gerektirmez. İstersen ana ekrana ekleyip uygulama gibi de kullanabilirsin.
 
 **Oyna:** https://kivancsh.github.io/super-lig-menajer/
 
 ## Neler var?
 
-- **18 takım ve gerçek kadrolar:** Ligdeki takımların Eylül 2026 itibarıyla kadroları, forma numaraları ve kiralık oyuncuları. Toplam yaklaşık 490 oyuncu var.
-- **Canlı maç motoru:** Maçlar dakika dakika simüle edilir. Canlı anlatımı izleyebilir, oyuncu değiştirebilir, oyun anlayışını (savunma / dengeli / hücum) değiştirebilir ya da sonucu anında görebilirsin.
-- **Taktik:** 6 farklı diziliş, sahada ilk 11 düzenleme, yedek kulübesi ve mevki uyumu.
-- **Transferler:** Yaz ve ara transfer dönemleri var.
-  - Başka kulüplerin oyuncularına bonservis ya da kiralama teklifi yapabilirsin.
-  - Kulüpler teklifini kabul edebilir, reddedebilir ya da karşı teklif yapabilir.
-  - Kulüple anlaşınca oyuncuyla maaş ve süre pazarlığı yaparsın.
-  - Serbest oyuncularla her zaman anlaşabilirsin.
-- **Senin oyuncularına gelen teklifler:** Türk ve yabancı kulüpler oyuncuların için teklif gönderir. Kabul edebilir, reddedebilir ya da pazarlık yapabilirsin. Büyük kulübün teklifini reddedersen oyuncunun morali düşer. Genç oyuncuların için kiralama talepleri de gelir.
-- **Diğer kulüplerin transferleri:** Yapay zekâ kulüpleri kendi aralarında transfer ve kiralama yapar, yurt dışına oyuncu satar.
-- **Sakatlıklar ve cezalar:** Kas yorgunluğundan çapraz bağ kopmasına kadar farklı süreli sakatlıklar var. Dört sarı kart ya da kırmızı kart gören oyuncu ceza alır.
-- **Kondisyon, moral ve gelişim:** Genç oyuncular forma şansı buldukça gelişir, yaşlı oyuncular yavaş yavaş düşer.
-- **Finans:** Bilet, yayın ve sponsor gelirleri, maaşlar, işletme giderleri ve sezon sonu ödülleri.
-- **Yönetim:** Kulübünün itibarına göre bir sezon hedefi konur. Sonuçlar kötü giderse görevden alınabilirsin.
-- **Sezon sonu:** Şampiyon, gol kralı, asist kralı ve sezonun oyuncusu belirlenir. Ardından yeni sezon başlar: sözleşmeler biter, oyuncular yaşlanır ya da emekli olur, altyapıdan gençler gelir.
-- **Kayıt:** Oyun her adımda telefonundaki tarayıcıya otomatik kaydedilir.
+### Bitmeyen kariyer
+- **Sezonlar birbirini izler:** Bir sezon bitince bir sonraki başlar. Sözleşmeler biter, oyuncular yaşlanır ya da emekli olur, altyapıdan gençler gelir.
+- **Kiralıklar süresi kadar sürer:** 1 ya da 2 sezonluk kiralık yapılabilir. Süresi dolan oyuncu kendi kulübüne döner. Satılan oyuncu yeni kulübünde kalır.
+- **Yükselme ve düşme:**
+  - Süper Lig'den 3 takım düşer.
+  - 1. Lig'den 2 takım doğrudan yükselir, bir takım da play-off ile çıkar.
+  - 1. Lig'den 4 takım düşer, 2. Lig'den 4 takım yükselir.
+  - Takımın küme düşerse alt ligde oynamaya devam edersin.
+
+### Organizasyonlar
+- **Ligler:**
+  - Trendyol Süper Lig (18 takım)
+  - Trendyol 1. Lig (20 takım)
+  - 2. Lig (alt lig kulüplerinden 16 takımlık tek grup)
+- **Ziraat Türkiye Kupası:**
+  - Süper Lig takımları 3. turda (6 takım) ve 4. turda (7 takım) katılır. Avrupa'da oynayan kulüpler ile son şampiyon son 16'da katılır.
+  - Maçlar tek maç eleme usulüyle oynanır; yarı final çift maçlıdır, final tarafsız sahadadır.
+  - Berabere biten maçlarda uzatma ve penaltılar oynanır.
+- **UEFA Şampiyonlar Ligi, Avrupa Ligi ve Konferans Ligi:** Yeni formatla oynanır.
+  - 36 takımlı lig aşamasında ŞL ve AL'de 8, KL'de 6 maç oynanır. Rakipler torbalardan çekilir; aynı ülke takımları eşleşmez.
+  - İlk 8 doğrudan son 16'ya kalır, 9-24 arası eleme play-off turuna gider.
+  - Ardından son 16, çeyrek final ve yarı final çift maç olarak oynanır. Final tek maçtır.
+- **2026-27 lig aşamaları gerçek kura torbalarıyla oynanır:** Galatasaray ve Fenerbahçe Şampiyonlar Ligi'nde, Beşiktaş Avrupa Ligi'nde, Trabzonspor Konferans Ligi'nde.
+- **Avrupa kontenjanı gerçek erişim listesine göre dağıtılır (2027-28'den itibaren):** Türkiye UEFA sıralamasında 10. sırada olduğu için:
+  - Şampiyon: Şampiyonlar Ligi lig aşaması
+  - Lig ikincisi: ŞL 2. ön eleme
+  - Kupa şampiyonu: Avrupa Ligi play-off
+  - Lig üçüncüsü: AL 2. ön eleme
+  - Lig dördüncüsü: Konferans Ligi 2. ön eleme
+- **Ön elemelerde elenen takım bir alt kupaya düşer.** Örneğin ŞL play-off'unda elenen takım Avrupa Ligi lig aşamasına geçer.
+- **Kuralar gündem olur:** Lig aşaması, play-off, son 16, ön eleme ve kupa kuraları çekildiğinde Gündem'e düşer; senin rakiplerin gelen kutuna gelir.
+
+### Avrupa çapında dünya
+- **195 kulüp, yaklaşık 5.400 oyuncu:** Süper Lig, 1. Lig, 2. Lig ve Avrupa'nın dört bir yanından kulüpler var. Suudi Arabistan ve MLS'ten transfer ortakları da var.
+- **Gerçek kadrolar:** Avrupa ve 1. Lig kulüplerinin kadroları, forma numaraları, uyrukları, yaşları, mevkileri, kiralık durumları ve teknik direktörleri Eylül 2026 itibarıyla Wikipedia ve Wikidata'dan alındı.
+- **Transferler Avrupa çapında:** Her kulübün oyuncusuna teklif yapabilirsin. Senin oyuncuların için de Avrupa kulüplerinden teklif gelir. Yapay zekâ kulüpleri kendi aralarında transfer ve kiralama yapar.
+- **Avrupa kulüpleri ekranı:** Ülke ülke tüm kulüpleri ve kadroları gezebilirsin.
+
+### Rekabet ve maç motoru
+- **Dakika dakika canlı maç:** Oyuncu değiştirebilir ve oyun anlayışını değiştirebilirsin.
+- **İç saha avantajı:** Ev sahibi takım sahada %7 (1,07 kat) daha etkilidir. Tarafsız sahada bu avantaj yoktur.
+- **Mücadeleci yapay zekâ:**
+  - Rakibe ve sahaya göre taktik seçer.
+  - Geride kalınca hücuma döner ve hücumcu oyuncu sokar. Öndeyken oyunu yönetir.
+  - Farklı skorlar nadirdir.
+- **Gerçekçi sonuçlar:** Maç başına yaklaşık 2,5 gol, %27 beraberlik, %44 iç saha galibiyeti.
+
+### Seni oyunda tutan şeyler
+- **Gündem:** Kulübün, lig, Avrupa, kupa, transfer ve ödül haberleri kategori kategori listelenir. Yaklaşan kura ve olayların takvimi de buradadır.
+- **Basın toplantıları:** Derbiler, Avrupa geceleri, yarı final ve finaller öncesi soruları yanıtlarsın. Söylediklerin morali, taraftarı ve yönetimi etkiler.
+- **Oyuncuyla birebir görüşme:** Oyuncunu övebilir, ondan daha fazlasını isteyebilir ya da forma sözü verebilirsin. Verdiğin sözü tutmazsan oyuncu küser.
+- **Taraftar memnuniyeti:** Galibiyetler, derbiler ve Avrupa başarıları taraftarı coşturur, kötü sonuçlar tepki çeker.
+- **Ödüller:** Her hafta Süper Lig'de haftanın takımı, her ay ayın oyuncusu ve ayın teknik direktörü seçilir.
+- **Kupa dolabı ve kariyer:** Kazandığın kupalar, ödüller, sezon sezon sonuçların ve kariyer istatistiklerin tutulur.
+- **20 başarım:** İlk galibiyet, derbi zaferi, dev avcısı, Avrupa fatihi, double gibi.
+- **Takip listesi:** İlgilendiğin oyuncuları tek listede takip edersin.
+- **İş teklifleri:** Başarılı sezonlardan sonra daha büyük kulüpler seni ister. Görevden alınırsan kariyerin bitmez; seninle çalışmak isteyen kulüplerden birini seçip devam edersin.
+
+### Diğerleri
+- **Taktik:** 6 diziliş, ilk 11 ve yedek kulübesi, mevki uyumu.
+- **Sakatlık ve cezalar:** Sakatlıklar ve kırmızı kart cezaları vardır. Lig maçlarında 4 sarı kart gören oyuncu bir maç ceza alır.
+- **Kondisyon, moral ve gelişim.**
+- **Finans:** Bilet, yayın, sponsor, lig/kupa/UEFA ödülleri, maaşlar ve giderler.
+- **Yönetim hedefleri:** Hedefler ligine ve kulübüne göre konur (şampiyonluk, Avrupa, yükselme, ligde kalma).
 
 ## 👥 Arkadaşlarla ortak kariyer
 
-Aynı ligde her arkadaşın bir takımı yönetir (en fazla 8 kişi).
+Aynı dünyada her arkadaşın bir Süper Lig takımını yönetir (en fazla 8 kişi).
 
 1. Oyunu aç → **Arkadaşlarla oyna**.
 2. Adını yaz, takımını seç, **Yeni lig kur**. 6 haneli bir lig kodu çıkar.
 3. **Davet linkini paylaş** ile linki arkadaşlarına gönder. Onlar linke tıklayıp kendi takımlarını seçerek katılır.
 4. Herkes lobiye gelince kurucu **Ligi başlat**'a basar.
-5. Herkes kadrosunu, taktiğini ve transferlerini ayarlayıp **Hazırım**'a bastığında oyun bir sonraki maç haftasına (en fazla 7 gün) ilerler. Maçlar, her teknik direktörün ayarladığı kadro ve taktikle oynanır.
+5. Herkes kadrosunu, taktiğini ve transferlerini ayarlayıp **Hazırım**'a bastığında oyun bir sonraki maç gününe (en fazla 7 gün) ilerler.
 
 Bilmen gerekenler:
 
 - Birbirinizin oyuncularına teklif yapabilir, karşı teklif verip pazarlık edebilirsiniz.
-- Maç günü herkes hazır olunca maçlar **canlı** oynanır: herkes aynı anda izler, kendi takımında oyuncu değiştirip oyun anlayışını değiştirebilir. Herkes oy verirse maç sonuca atlanır. Müdahale etmeyen tarafın değişikliklerini yapay zekâ yapar.
-- Yanıtlanmayan teklifler 7 oyun gününde düşer; kimse diğerlerini sonsuza kadar bekletemez.
-- Ligi o an çevrimiçi olan oyunculardan biri işler. Herkes çıkarsa lig bekler, biri uygulamayı açınca kaldığı yerden devam eder.
+- Lig, kupa ve Avrupa maçları **canlı** oynanır. Herkes aynı anda izler, kendi takımında oyuncu değiştirebilir ve oyun anlayışını değiştirebilir. Herkes oy verirse maç sonuca atlanır.
+- Basın toplantıları, oyuncu görüşmeleri ve takip listesi ortak kariyerde de çalışır.
+- Yanıtlanmayan teklifler 7 oyun gününde düşer.
+- Ligi o an çevrimiçi olan oyunculardan biri işler. Herkes çıkarsa lig bekler.
 - Ortak kariyerde görevden alınma yoktur.
-- Lig verisi Firebase'de tutulur; tek oyunculu kariyer ise yine sadece telefonunda kalır.
+- Bu güncellemeden önce kurulan ortak ligler, aynı teknik direktörler ve takımlarla yeni dünyada baştan başlar.
 
 ## Telefonda uygulama olarak kurmak
 
@@ -49,51 +98,63 @@ Oyunun tek ve sabit bir adresi var: **https://kivancsh.github.io/super-lig-menaj
 1. Linki telefonda aç.
 2. **iPhone (Safari):** Paylaş düğmesi → *Ana Ekrana Ekle*
    **Android (Chrome):** Oyundaki *Uygulamayı yükle* düğmesi ya da ⋮ menüsü → *Ana ekrana ekle*
-3. Bundan sonra oyunu ana ekrandaki **SL Menajer** simgesinden aç. Tam ekran, adres çubuğu olmadan açılır.
+3. Bundan sonra oyunu ana ekrandaki **SL Menajer** simgesinden aç.
 
 Kayıt ve devam etme:
 
-- Ayrı bir kaydetme düğmesi yok. Oyun her adımda ve uygulamadan çıkıldığı anda otomatik kaydedilir.
-- Simgeye her dokunuşta oyun doğrudan kaldığın yerden açılır.
+- Oyun her adımda ve uygulamadan çıkıldığı anda otomatik kaydedilir. Dünya büyüdüğü için kayıt sıkıştırılarak saklanır.
 - Canlı maçın ortasında çıkarsan maç aynı dakikada duraklatılmış olarak seni bekler.
-- Kayıt yalnızca o telefonda tutulur.
-- **iPhone'da** Safari'deki kayıt ile ana ekran uygulamasının kaydı birbirinden ayrıdır. Önce ana ekrana ekle, kariyerine oradan başla.
-- Uygulama güncellemeleri bir sonraki açılışta kendiliğinden gelir.
+- Kayıt yalnızca o telefonda tutulur. **iPhone'da** Safari'deki kayıt ile ana ekran uygulamasının kaydı birbirinden ayrıdır.
+- Bu büyük güncellemeden önceki tek oyunculu kayıtlar yeni dünyaya aktarılamaz. Başlangıç ekranında aynı takım ve isimle yeniden başlama seçeneği çıkar.
 
 ## Veri hakkında
 
-- Takım listesi ve kadrolar Eylül 2026 itibarıyla kamuya açık kaynaklardan derlendi (Wikipedia kadro sayfaları, kulüp ve basın duyuruları).
-- **Oyuncu güç değerleri (rating), potansiyeller, bazı yaşlar, maaşlar ve sözleşme süreleri bu oyun için yapılmış tahminlerdir.** Resmî veri değildir.
-- Hatalı ya da eksik bir oyuncu görürsen [`js/data/teams.js`](js/data/teams.js) dosyasını düzenleyip pull request açabilirsin. Satır biçimi şöyle:
+- **Süper Lig kadroları:** [`js/data/teams.js`](js/data/teams.js) dosyasında elle derlendi.
+- **Avrupa ve alt lig kulüplerinin kadroları:** [`tools/fetch_squads.py`](tools/fetch_squads.py) ile Wikipedia ve Wikidata'dan çekilir, [`tools/build_squads.py`](tools/build_squads.py) ile [`js/data/world-squads.js`](js/data/world-squads.js) dosyasına dönüştürülür.
+- **2026-27 UEFA lig aşaması torbaları ve Türk takımlarının eleme sonuçları gerçektir.**
+- **Oyuncu güç değerleri, potansiyeller, maaşlar ve sözleşme süreleri bu oyun için yapılmış tahminlerdir.** Avrupa'da bilinen yaklaşık 1.300 oyuncunun gücü elle girildi ([`tools/overrides.py`](tools/overrides.py)). Diğerleri, kulübün gücü ve oyuncunun Wikipedia'daki görünürlüğüne göre tahmin edildi.
+- **Basitleştirilmiş kısımlar:**
+  - 2. Lig tek grup olarak oynanır.
+  - Avrupa kulüplerinin iç ligleri ayrıca oynatılmaz. Sezon sonunda kulüp gücüne göre şampiyonlar ve Avrupa kupası katılımcıları belirlenir.
+  - Türkiye'nin UEFA sıralaması 10. sırada sabit tutulur.
+
+Hatalı bir oyuncu görürsen dosyayı düzenleyip pull request açabilirsin. Satır biçimi:
 
 ```
-forma no | ad soyad | ülke kodu | yaş | mevki | güç [| potansiyel] [| K:kiralandığı kulüp]
+forma no | ad soyad | ülke kodu | yaş | mevki | güç [| potansiyel] [| K:kiralandığı kulüp[@kiralık bitiş yılı]]
 10|Mohamed Salah|EG|34|RW|83
-22|Fabio Miretti|IT|22|CM|73|78|K:Juventus
+22|Fabio Miretti|IT|22|CM|73|78|K:Juventus@2027
 ```
 
-Bu proje hayran yapımı, ticari olmayan bir oyundur. Türkiye Futbol Federasyonu, Süper Lig ya da herhangi bir kulüple bağlantısı yoktur. Kulüp logoları ve resmî forma tasarımları lisans gerektirdiği için kullanılmaz; formalar kulüplerin renk düzenleriyle çizilmiştir. Stadyum adları ve kapasiteleri 2026-27 sezonu resmî listesine göredir.
+Bu proje hayran yapımı, ticari olmayan bir oyundur. TFF, Süper Lig, UEFA ya da herhangi bir kulüple bağlantısı yoktur. Kulüp logoları ve resmî forma tasarımları lisans gerektirdiği için kullanılmaz; formalar kulüplerin renk düzenleriyle çizilmiştir.
 
 ## Bilgisayarda çalıştırmak
 
-Derleme adımı yok, sadece statik dosyalar var. Proje klasöründe basit bir sunucu başlatman yeterli:
+Derleme adımı yok, sadece statik dosyalar var:
 
 ```bash
 python3 -m http.server 8765
 ```
 
-Sonra tarayıcıda `http://localhost:8765` adresini aç.
+Sonra tarayıcıda `http://localhost:8765` adresini aç. Motoru birkaç sezon hızlıca oynatıp istatistik görmek için `http://localhost:8765/tools/sim.html?s=3` adresini kullanabilirsin.
 
 ## Proje yapısı
 
 | Dosya | İçerik |
 |---|---|
-| `js/data/teams.js` | Takımlar, kadrolar, yabancı kulüpler |
-| `js/engine/match.js` | Dakika dakika maç motoru |
-| `js/engine/game.js` | Takvim, fikstür, finans, yönetim, sezon geçişi |
+| `js/data/teams.js` | Süper Lig takımları ve kadroları |
+| `js/data/europe.js` | Avrupa kulüpleri, 2026-27 UEFA torbaları |
+| `js/data/turkey-lower.js` | 1. Lig ve 2. Lig kulüpleri |
+| `js/data/world-squads.js` | Avrupa ve alt lig kadroları (otomatik üretilir) |
+| `js/data/world.js` | Oyun dünyasını oluşturan kulüp listesi |
+| `js/engine/match.js` | Maç motoru (iç saha avantajı, uzatma, penaltılar, yapay zekâ taktikleri) |
+| `js/engine/comps.js` | Ligler, kupa, UEFA kuraları ve eleme turları, yükselme/düşme |
+| `js/engine/career.js` | Taraftar, basın toplantısı, görüşmeler, ödüller, başarımlar, iş teklifleri |
+| `js/engine/game.js` | Takvim, finans, yönetim, sezon geçişi |
 | `js/engine/transfers.js` | Teklifler, kiralamalar, sözleşmeler, yapay zekâ kulüpleri |
 | `js/engine/players.js` | Mevkiler, değer, maaş, sakatlık, gelişim |
 | `js/engine/tactics.js` | Dizilişler, otomatik ilk 11, takım gücü |
 | `js/main.js` | Mobil arayüz |
+| `js/online/` | Ortak kariyer (Firebase) |
 
-Fikir olarak, kendi kendine işleyen futbol dünyası simülatörü [Open Football](https://github.com/ZOXEXIVO/open-football) projesinden ilham alındı. Kod sıfırdan yazıldı.
+Fikir olarak [Open Football](https://github.com/ZOXEXIVO/open-football) projesinden ilham alındı. Kod sıfırdan yazıldı.

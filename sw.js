@@ -1,6 +1,6 @@
 // Çevrimdışı oynanabilmesi için basit service worker.
 // Önce ağdan dener (güncellemeler hemen gelsin), ağ yoksa önbellekten sunar.
-const CACHE = 'slm-v5';
+const CACHE = 'slm-v6';
 const ASSETS = [
   './',
   'index.html',
@@ -11,6 +11,11 @@ const ASSETS = [
   'icons/apple-touch-icon.png',
   'js/main.js',
   'js/data/teams.js',
+  'js/data/europe.js',
+  'js/data/turkey-lower.js',
+  'js/data/world-squads.js',
+  'js/data/names.js',
+  'js/data/world.js',
   'js/engine/util.js',
   'js/engine/players.js',
   'js/engine/tactics.js',
@@ -18,6 +23,8 @@ const ASSETS = [
   'js/engine/inbox.js',
   'js/engine/transfers.js',
   'js/engine/game.js',
+  'js/engine/comps.js',
+  'js/engine/career.js',
   'js/online/config.js',
   'js/online/online.js',
   'js/online/net-firebase.js',

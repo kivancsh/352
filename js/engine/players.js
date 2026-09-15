@@ -156,7 +156,7 @@ export function moraleLabel(m) {
   return 'Çok düşük';
 }
 
-// Veri satırını oyuncu nesnesine çevirir: "no|isim|ülke|yaş|mevki|güç[|potansiyel][|K:kulüp]"
+// Veri satırını oyuncu nesnesine çevirir: "no|isim|ülke|yaş|mevki|güç[|potansiyel][|K:kulüp[@bitiş yılı]]"
 export function parsePlayerLine(line, teamId, season) {
   const parts = line.split('|').map((s) => s.trim());
   const [num, name, nat, age, pos, ovr] = parts;
@@ -184,7 +184,11 @@ export function parsePlayerLine(line, teamId, season) {
     history: [],
   };
   for (const extra of parts.slice(6)) {
-    if (extra.startsWith('K:')) p.loanFromName = extra.slice(2);
+    if (extra.startsWith('K:')) {
+      const [club, until] = extra.slice(2).split('@');
+      p.loanFromName = club;
+      if (until) p.loanUntil = Number(until);
+    }
     else if (/^\d+$/.test(extra)) p.pot = Number(extra);
   }
   if (!p.pot) p.pot = defaultPotential(p.age, p.ovr);

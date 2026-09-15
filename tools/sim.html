@@ -1,0 +1,82 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Motor testi</title>
+<pre id="out">Çalışıyor…</pre>
+<script type="module">
+import { newGame, continueGame, onUserMatchPlayed, startNewSeason, standings } from '../js/engine/game.js';
+import { Match } from '../js/engine/match.js';
+import { seedRng, getRngState } from '../js/engine/util.js';
+import { COMPS } from '../js/engine/comps.js';
+
+const out = document.getElementById('out');
+const log = (s) => { out.textContent += `\n${s}`; };
+const params = new URLSearchParams(location.search);
+const seasons = Number(params.get('s') || 1);
+const team = params.get('t') || 'gs';
+
+window.simDone = false;
+try {
+  const t0 = performance.now();
+  const state = newGame(team, 'Test');
+  window.S = state;
+  log(`Dünya: ${Object.keys(state.teams).length} kulüp, ${Object.keys(state.players).length} oyuncu, ${state.fixtures.length} maç, ${(JSON.stringify(state).length / 1e6).toFixed(2)} MB (${Math.round(performance.now() - t0)} ms)`);
+  for (let s = 0; s < seasons; s++) {
+    const ts = performance.now();
+    let guard = 0;
+    while (guard++ < 5000) {
+      const r = continueGame(state);
+      if (r.reason === 'userMatch') {
+        seedRng(state.rng);
+        const m = new Match(state, r.fixture, { autoUser: true });
+        m.playToEnd();
+        const res = m.apply();
+        state.rng = getRngState();
+        onUserMatchPlayed(state, r.fixture, res);
+      } else if (r.reason === 'decision') {
+        r.message.resolved = true;
+      } else if (r.reason === 'seasonEnd' || r.reason === 'sacked') break;
+    }
+    // İstatistikler
+    const fx = state.fixtures.filter((f) => f.played);
+    const by = {};
+    for (const f of fx) {
+      const k = f.comp;
+      const b = (by[k] ||= { n: 0, g: 0, h: 0, d: 0, a: 0, big: 0, et: 0, pens: 0 });
+      b.n++; b.g += f.hg + f.ag;
+      if (f.hg > f.ag) b.h++; else if (f.hg < f.ag) b.a++; else b.d++;
+      if (Math.abs(f.hg - f.ag) >= 4) b.big++;
+      if (f.et) b.et++;
+      if (f.pens) b.pens++;
+    }
+    const sum = state.seasonSummary;
+    log(`\n=== Sezon ${state.season} (${Math.round((performance.now() - ts) / 1000)} sn) · ${state.date} · faz ${state.phase} ${state.gameOver ? 'KOVULDU' : ''}`);
+    for (const [k, b] of Object.entries(by)) {
+      log(`${k.padEnd(5)} ${String(b.n).padStart(4)} maç · gol/maç ${(b.g / b.n).toFixed(2)} · ev %${Math.round(b.h / b.n * 100)} ber %${Math.round(b.d / b.n * 100)} dep %${Math.round(b.a / b.n * 100)} · 4+ fark %${(b.big / b.n * 100).toFixed(1)} · uzatma ${b.et} · pen ${b.pens}`);
+    }
+    const unplayed = state.fixtures.filter((f) => !f.played);
+    log(`Oynanmamış maç: ${unplayed.length}`);
+    if (sum) {
+      const T = (id) => state.teams[id]?.name;
+      log(`Şampiyonlar: ${Object.entries(sum.champions).map(([k, v]) => `${k}: ${T(v)}`).join(' | ')}`);
+      log(`SL tablo: ${sum.table.map((r, i) => `${i + 1}.${T(r.id)} ${r.pts}`).join(', ')}`);
+      log(`Düşen: ${sum.relegated.map(T)} · Çıkan: ${sum.promoted.map(T)} · 1.Lig düşen: ${sum.relegatedTR1.map(T)} · 2.Lig çıkan: ${sum.promotedTR2.map(T)}`);
+      log(`Gol kralı: ${sum.topScorer?.name} ${sum.topScorer?.v} · Kullanıcı: ${JSON.stringify(sum.humans[team])}`);
+      log(`Avrupa gelecek sezon: ${JSON.stringify(sum.europeNext)}`);
+      for (const c of ['UCL', 'UEL', 'UECL']) {
+        const U = state.uefa[c];
+        log(`${c}: ${U.teams.length} takım, aşama ${U.stage}, şampiyon ${T(U.winner)}, TR: ${U.teams.filter((id) => state.teams[id].country === 'TR').map(T)}`);
+      }
+      log(`ZTK şampiyonu: ${T(state.cups.ZTK.winner)}; gündem haber sayısı ${state.news.length}; transfer ${state.transferLog.length}`);
+      log(`Son haberler:\n  ${state.news.slice(0, 12).map((n) => `[${n.cat}] ${n.date} ${n.text}`).join('\n  ')}`);
+    }
+    if (s < seasons - 1 && state.phase === 'seasonEnd' && !state.gameOver) {
+      startNewSeason(state);
+      log(`Yeni sezon: ${state.season}, maç ${state.fixtures.length}, oyuncu ${Object.keys(state.players).length}, boyut ${(JSON.stringify(state).length / 1e6).toFixed(2)} MB, SL: ${state.leagues.SL.length}, TR1: ${state.leagues.TR1.length}, TR2: ${state.leagues.TR2.length}`);
+    } else if (state.gameOver) break;
+  }
+} catch (e) {
+  log(`HATA: ${e.stack || e}`);
+}
+window.simDone = true;
+log('\nBİTTİ');
+</script>

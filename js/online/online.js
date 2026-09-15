@@ -6,11 +6,12 @@
 // anda izler. İşleyici uygulamayı kapatırsa kira süresi dolar ve çevrimiçi başka bir oyuncu
 // (canlı maç dahil) kaldığı yerden devralır.
 import { FIREBASE_CONFIG } from './config.js';
-import { newMultiplayerGame, advanceMultiplayer, migrateState, addHuman, applyHumanMatch } from '../engine/game.js';
+import { newMultiplayerGame, advanceMultiplayer, migrateState, rebuildFromOld, addHuman, applyHumanMatch } from '../engine/game.js';
 import { Match } from '../engine/match.js';
 import { seedRng, getRngState } from '../engine/util.js';
 import { FORMATIONS, MENTALITIES } from '../engine/tactics.js';
 import { makeBid, proposeContract, cancelNegotiation, respondIncoming, respondCounter } from '../engine/transfers.js';
+import { answerPress, talkToPlayer, toggleShortlist } from '../engine/career.js';
 
 export class UserError extends Error {}
 
@@ -148,7 +149,9 @@ export async function startLeague(net, code) {
   if (!lg || lg.status !== 'lobby') return false;
   if (lg.createdBy !== net.uid) throw new UserError('Ligi yalnızca kurucu başlatabilir.');
   const members = Object.values(lg.members).sort((a, b) => a.joinedAt - b.joinedAt);
-  const state = newMultiplayerGame(members.map((m) => ({ teamId: m.teamId, name: m.name })), code);
+  let seed = 7;
+  for (const ch of code) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) >>> 0;
+  const state = newMultiplayerGame(members.map((m) => ({ teamId: m.teamId, name: m.name })), code, seed);
   const parts = await net.putSnapshot(code, 1, await gzipB64(JSON.stringify(state)));
   const ok = await net.transactLeague(code, (cur) => {
     if (!cur || cur.status !== 'lobby') return null;
@@ -182,7 +185,7 @@ export function applyAction(state, league, a) {
         return { ok: true };
       }
       case 'bid': {
-        const r = makeBid(state, { pid: p.pid, type: p.type === 'loan' ? 'loan' : 'transfer', fee: Math.max(0, Number(p.fee) || 0), wageShare: Number(p.wageShare) || 0, actor: tid });
+        const r = makeBid(state, { pid: p.pid, type: p.type === 'loan' ? 'loan' : 'transfer', fee: Math.max(0, Number(p.fee) || 0), wageShare: Number(p.wageShare) || 0, loanYears: Number(p.loanYears) || 1, actor: tid });
         return { ok: r.ok, error: r.error || null, freeAgent: !!r.freeAgent };
       }
       case 'contract':
@@ -196,6 +199,12 @@ export function applyAction(state, league, a) {
         return respondIncoming(state, p.offerId, ['accept', 'reject', 'counter'].includes(p.action) ? p.action : 'reject', Math.max(0, Number(p.fee) || 0), tid);
       case 'counterReply':
         return respondCounter(state, p.offerId, !!p.accept, tid);
+      case 'press':
+        return answerPress(state, tid, p.fid, Array.isArray(p.answers) ? p.answers.slice(0, 3).map(String) : []);
+      case 'talk':
+        return talkToPlayer(state, tid, p.pid, String(p.kind));
+      case 'shortlist':
+        return toggleShortlist(state, tid, p.pid);
       default:
         return { ok: false, text: 'Bilinmeyen işlem.' };
     }
@@ -291,7 +300,13 @@ export class OnlineSession {
           await sleep(600);
           continue;
         }
-        const s = migrateState(JSON.parse(await gunzipB64(b64)));
+        const raw = JSON.parse(await gunzipB64(b64));
+        let s = migrateState(raw);
+        if (!s) {
+          // Avrupa kupaları ve alt ligler öncesindeki bir lig: aynı teknik direktörlerle yeni dünyada baştan başlar.
+          s = rebuildFromOld(raw);
+          this.upgraded = true;
+        }
         if (this.league.rev < lg.rev) continue;
         this.state = s;
         this.rev = lg.rev;
@@ -357,7 +372,8 @@ export class OnlineSession {
       if (this.league.rev !== this.rev) await this.pull();
       if (!this.state || this.league.rev !== this.rev) return;
       const s = this.state;
-      let changed = false;
+      let changed = !!this.upgraded;
+      this.upgraded = false;
 
       // Lig başladıktan sonra katılanlar ve isim değişiklikleri
       for (const m of Object.values(this.league.members)) {
