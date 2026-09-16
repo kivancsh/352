@@ -445,169 +445,168 @@ export const TEAMS = [
   },
   {
     id: 'gfk', name: 'Gaziantep FK', short: 'GFK', city: 'Gaziantep', stadium: 'Gaziantep Stadyumu', capacity: 30320,
-    colors: ['#D2232A', '#111111'], kit: { pattern: 'stripes', colors: ['#D2232A', '#111111'] }, rep: 58, balance: 3500000, coach: 'Mirel Rădoi', formation: '4-2-3-1',
+    colors: ['#D2232A', '#111111'], kit: { pattern: 'stripes', colors: ['#D2232A', '#111111'] }, rep: 68, balance: 5500000, coach: 'Mirel Rădoi', formation: '4-2-3-1',
     players: `
-25|Kacper Tobiasz|PL|23|GK|69|74
--|Ataberk Dadakdeniz|TR|22|GK|55
-81|Cemilhan Aslan|TR|22|GK|55
-4|Arda Kızıldağ|TR|27|CB|68
-14|Myenty Abena|SR|31|CB|68
-21|Abakar Sylla|CI|23|CB|66
-77|Sabahattin Destici|TR|20|CB|56
-2|Luis Pérez|ES|31|RB|67
-18|Deian Sorescu|RO|29|RB|68
--|Nazım Sangaré|TR|31|RB|66
-96|Florin Ștefan|RO|30|LB|66
-23|Kerim Çalhanoğlu|DE|24|LB|64
-3|Drissa Camara|CI|24|DM|68
-6|Ulrich Meleke|CI|23|DM|64
-7|Juninho Bacuna|CW|28|CM|68
-61|Ogün Özçiçek|TR|28|CM|65
-8|Victor Gidado|NG|22|CM|64
--|Karamba Gassama|GM|23|CM|60
-11|Mirza Cihan|TR|21|CM|58
-10|Kacper Kozłowski|PL|23|AM|70|75
-44|Alexandru Maxim|RO|36|AM|69
-22|Sontje Hansen|NL|24|RW|68|K:Middlesbrough
--|Muhammet Akmelek|TR|19|RW|54
-27|Enver Kulašin|BA|22|LW|63
-28|Halil Dervişoğlu|TR|26|ST|68|K:Galatasaray
-9|Trivante Stewart|JM|27|ST|67|K:Maccabi Haifa
-19|Serdar Dursun|TR|34|ST|67
-97|Fuat Bavuk|TR|20|ST|55
+25|Kacper Tobiasz|PL|23|GK|72|77
+-|Ataberk Dadakdeniz|TR|22|GK|58
+81|Cemilhan Aslan|TR|22|GK|58
+4|Arda Kızıldağ|TR|27|CB|71
+14|Myenty Abena|SR|31|CB|71
+21|Abakar Sylla|CI|23|CB|69
+77|Sabahattin Destici|TR|20|CB|59
+2|Luis Pérez|ES|31|RB|70
+18|Deian Sorescu|RO|29|RB|71
+-|Nazım Sangaré|TR|31|RB|69
+96|Florin Ștefan|RO|30|LB|69
+23|Kerim Çalhanoğlu|DE|24|LB|67
+3|Drissa Camara|CI|24|DM|71
+6|Ulrich Meleke|CI|23|DM|67
+7|Juninho Bacuna|CW|28|CM|71
+61|Ogün Özçiçek|TR|28|CM|68
+8|Victor Gidado|NG|22|CM|67
+-|Karamba Gassama|GM|23|CM|63
+11|Mirza Cihan|TR|21|CM|61
+10|Kacper Kozłowski|PL|23|AM|73|78
+44|Alexandru Maxim|RO|36|AM|72
+22|Sontje Hansen|NL|24|RW|71|K:Middlesbrough
+-|Muhammet Akmelek|TR|19|RW|57
+27|Enver Kulašin|BA|22|LW|66
+28|Halil Dervişoğlu|TR|26|ST|71|K:Galatasaray
+9|Trivante Stewart|JM|27|ST|70|K:Maccabi Haifa
+19|Serdar Dursun|TR|34|ST|70
+97|Fuat Bavuk|TR|20|ST|58
 `,
   },
   {
     id: 'riz', name: 'Çaykur Rizespor', short: 'RİZ', city: 'Rize', stadium: 'Çaykur Didi Stadyumu', capacity: 14879,
-    colors: ['#00843D', '#0072BC'], kit: { pattern: 'halves', colors: ['#00843D', '#0072BC'] }, rep: 58, balance: 3500000, coach: 'Recep Uçar', formation: '4-2-3-1',
+    colors: ['#00843D', '#0072BC'], kit: { pattern: 'halves', colors: ['#00843D', '#0072BC'] }, rep: 68, balance: 5500000, coach: 'Recep Uçar', formation: '4-2-3-1',
     players: `
-75|Yahia Fofana|CI|25|GK|72
-30|Zafer Görgen|TR|28|GK|60
-31|Hasan Döne|TR|20|GK|52
-2|Husniddin Aliqulov|UZ|27|CB|69
-4|Attila Mocsi|HU|25|CB|68
-93|Modibo Sagnan|ML|26|CB|68
-5|Tayyip Talha Sanuç|TR|26|CB|66
-19|Umut Erdem|TR|20|CB|58|68
-17|Zakaria Ariss|MA|22|RB|62
-37|Muhammet Taha Şahin|TR|21|RB|58
-54|Mithat Pala|TR|25|LB|66
-21|Siaka Bakayoko|FR|23|LB|62
-14|Taylan Antalyalı|TR|31|DM|67
-6|Moussa Diakité|ML|22|DM|66|K:Cádiz
-20|Qazim Laçi|AL|30|CM|70
--|Can Bozdoğan|TR|25|CM|66
-47|Emirhan Yılmaz|TR|20|CM|55
-10|Ibrahim Olawoyin|NG|28|AM|69
-8|Dal Varešanović|BA|25|AM|68
-11|Adedire Mebude|SC|22|RW|68|74
-53|Iustin Doicaru|RO|21|RW|62
-7|Valentin Mihăilă|RO|26|LW|72
-99|Emrecan Bulut|TR|22|LW|58
--|Gennaro Borrelli|IT|26|ST|69|K:Cagliari
-9|Ali Sowe|GM|32|ST|68
-23|Ahmed Kutucu|TR|26|ST|67|K:Galatasaray
-80|Mustafa Coşkun Tosun|TR|19|ST|54
+75|Yahia Fofana|CI|25|GK|75
+30|Zafer Görgen|TR|28|GK|63
+31|Hasan Döne|TR|20|GK|55
+2|Husniddin Aliqulov|UZ|27|CB|72
+4|Attila Mocsi|HU|25|CB|71
+93|Modibo Sagnan|ML|26|CB|71
+5|Tayyip Talha Sanuç|TR|26|CB|69
+19|Umut Erdem|TR|20|CB|61|71
+17|Zakaria Ariss|MA|22|RB|65
+37|Muhammet Taha Şahin|TR|21|RB|61
+54|Mithat Pala|TR|25|LB|69
+21|Siaka Bakayoko|FR|23|LB|65
+14|Taylan Antalyalı|TR|31|DM|70
+6|Moussa Diakité|ML|22|DM|69|K:Cádiz
+20|Qazim Laçi|AL|30|CM|73
+-|Can Bozdoğan|TR|25|CM|69
+47|Emirhan Yılmaz|TR|20|CM|58
+10|Ibrahim Olawoyin|NG|28|AM|72
+8|Dal Varešanović|BA|25|AM|71
+11|Adedire Mebude|SC|22|RW|71|77
+53|Iustin Doicaru|RO|21|RW|65
+7|Valentin Mihăilă|RO|26|LW|75
+99|Emrecan Bulut|TR|22|LW|61
+-|Gennaro Borrelli|IT|26|ST|72|K:Cagliari
+9|Ali Sowe|GM|32|ST|71
+23|Ahmed Kutucu|TR|26|ST|70|K:Galatasaray
+80|Mustafa Coşkun Tosun|TR|19|ST|57
 `,
   },
   {
     id: 'erz', name: 'Erzurumspor FK', short: 'ERZ', city: 'Erzurum', stadium: 'Erzurum Kazım Karabekir Stadyumu', capacity: 21374,
-    colors: ['#0072BC', '#FFFFFF'], kit: { pattern: 'plain', colors: ['#0072BC', '#FFFFFF'] }, rep: 52, balance: 2500000, coach: 'Serkan Özbalta', formation: '4-4-2',
+    colors: ['#0072BC', '#FFFFFF'], kit: { pattern: 'plain', colors: ['#0072BC', '#FFFFFF'] }, rep: 62, balance: 4500000, coach: 'Serkan Özbalta', formation: '4-4-2',
     players: `
-31|Matija Orbanić|HR|28|GK|65
-1|Ertuğrul Taşkıran|TR|36|GK|63
-17|Erkan Anapa|TR|29|GK|58
-18|Nihad Mujakić|BA|27|CB|67
-4|Amar Gërxhaliu|XK|24|CB|66
-22|Mustafa Yumlu|TR|39|CB|60
-23|Cengizhan Bayrak|TR|21|CB|56
--|Taha Rençber|TR|19|CB|52
-2|Festy Ebosele|IE|24|RB|68|K:Başakşehir
-25|Ömer Arda Kara|TR|19|RB|54
-15|Guram Giorbelidze|GE|30|LB|66
-53|Orhan Ovacıklı|TR|35|LB|60
-3|Yakup Kırtay|TR|22|LB|58
-42|Elisha Owusu|GH|28|DM|68
-6|Brandon Baiye|BE|25|DM|67
--|Lawrence Agyekum|GH|22|CM|66|73|K:Cercle Brugge
-8|Sefa Akgün|TR|26|CM|60
--|Emirhan Acar|TR|20|CM|54
-9|Gyrano Kerk|SR|31|RW|68
-65|Martín Rodríguez|CL|32|RW|66
-97|Kerem Erener|TR|20|RW|55
-20|Miguel Cardoso|PT|32|LW|66
-90|Nariman Akhundzade|AZ|22|ST|67|73|K:Columbus Crew
-19|Ibrahim Diabate|CI|22|ST|64|K:GAIS
-10|Eren Tozlu|TR|35|ST|62
-99|Mustafa Fettahoğlu|TR|21|ST|55
+31|Matija Orbanić|HR|28|GK|68
+1|Ertuğrul Taşkıran|TR|36|GK|66
+17|Erkan Anapa|TR|29|GK|61
+18|Nihad Mujakić|BA|27|CB|70
+4|Amar Gërxhaliu|XK|24|CB|69
+22|Mustafa Yumlu|TR|39|CB|63
+23|Cengizhan Bayrak|TR|21|CB|59
+-|Taha Rençber|TR|19|CB|55
+2|Festy Ebosele|IE|24|RB|71|K:Başakşehir
+25|Ömer Arda Kara|TR|19|RB|57
+15|Guram Giorbelidze|GE|30|LB|69
+53|Orhan Ovacıklı|TR|35|LB|63
+3|Yakup Kırtay|TR|22|LB|61
+42|Elisha Owusu|GH|28|DM|71
+6|Brandon Baiye|BE|25|DM|70
+-|Lawrence Agyekum|GH|22|CM|69|76|K:Cercle Brugge
+8|Sefa Akgün|TR|26|CM|63
+-|Emirhan Acar|TR|20|CM|57
+9|Gyrano Kerk|SR|31|RW|71
+65|Martín Rodríguez|CL|32|RW|69
+97|Kerem Erener|TR|20|RW|58
+20|Miguel Cardoso|PT|32|LW|69
+90|Nariman Akhundzade|AZ|22|ST|70|76|K:Columbus Crew
+19|Ibrahim Diabate|CI|22|ST|67|K:GAIS
+10|Eren Tozlu|TR|35|ST|65
+99|Mustafa Fettahoğlu|TR|21|ST|58
 `,
   },
   {
     id: 'amed', name: 'Amedspor', short: 'AMD', city: 'Diyarbakır', stadium: 'Diyarbakır Stadyumu', capacity: 33000,
-    colors: ['#E30613', '#00843D'], kit: { pattern: 'stripes', colors: ['#E30613', '#00843D'] }, rep: 52, balance: 2500000, coach: 'Besnik Hasi', formation: '4-2-3-1',
+    colors: ['#E30613', '#00843D'], kit: { pattern: 'stripes', colors: ['#E30613', '#00843D'] }, rep: 62, balance: 4500000, coach: 'Besnik Hasi', formation: '4-2-3-1',
     players: `
-40|Alban Lafont|FR|27|GK|72
-27|Burak Bozan|TR|26|GK|58
--|Veysel Sapan|TR|21|GK|52
-4|David Bates|SC|29|CB|67
-5|Lumbardh Dellova|XK|26|CB|67
-33|Amadou Cissé|GN|24|CB|62
-81|Ali Turap Bülbül|TR|21|CB|62|72
--|Berat Perçin|TR|20|CB|52
-21|Mehmet Yeşil|TR|25|RB|60
-47|Kahraman Demirtaş|TR|33|RB|62
-17|Umut Meraş|TR|31|LB|66
-3|Miraç Acer|TR|25|LB|60
-18|Gökhan Gül|DE|28|DM|66
-22|Rayan Raveloson|MG|29|CM|67
-8|Furkan Soyalp|TR|31|CM|65
-6|Cem Üstündağ|AT|24|CM|64
-97|Berk Kızıldemir|TR|20|CM|54
-91|Dia Saba|IL|33|AM|68
-93|Rayan Lutin|KM|23|AM|62
-7|Ermal Krasniqi|XK|27|RW|67
-10|Samuel Ballet|CH|24|RW|66
-11|Yira Sor|NG|26|LW|69
-99|Gift Orban|NG|24|ST|71|K:TSG Hoffenheim
-45|Mbaye Diagne|SN|34|ST|67
-74|Mohamed Khalil|SY|22|ST|58
-19|Muhammed Yıldırım|TR|21|ST|56
+40|Alban Lafont|FR|27|GK|75
+27|Burak Bozan|TR|26|GK|61
+-|Veysel Sapan|TR|21|GK|55
+4|David Bates|SC|29|CB|70
+5|Lumbardh Dellova|XK|26|CB|70
+33|Amadou Cissé|GN|24|CB|65
+81|Ali Turap Bülbül|TR|21|CB|65|75
+-|Berat Perçin|TR|20|CB|55
+21|Mehmet Yeşil|TR|25|RB|63
+47|Kahraman Demirtaş|TR|33|RB|65
+17|Umut Meraş|TR|31|LB|69
+3|Miraç Acer|TR|25|LB|63
+18|Gökhan Gül|DE|28|DM|69
+22|Rayan Raveloson|MG|29|CM|70
+8|Furkan Soyalp|TR|31|CM|68
+6|Cem Üstündağ|AT|24|CM|67
+97|Berk Kızıldemir|TR|20|CM|57
+91|Dia Saba|IL|33|AM|71
+93|Rayan Lutin|KM|23|AM|65
+7|Ermal Krasniqi|XK|27|RW|70
+10|Samuel Ballet|CH|24|RW|69
+11|Yira Sor|NG|26|LW|72
+99|Gift Orban|NG|24|ST|74|K:TSG Hoffenheim
+45|Mbaye Diagne|SN|34|ST|70
+74|Mohamed Khalil|SY|22|ST|61
+19|Muhammed Yıldırım|TR|21|ST|59
 `,
   },
   {
     id: 'cor', name: 'Çorum FK', short: 'ÇOR', city: 'Çorum', stadium: 'Çorum Şehir Stadyumu', capacity: 15000,
-    colors: ['#E30613', '#111111'], kit: { pattern: 'plain', colors: ['#E30613', '#111111'] }, rep: 50, balance: 3000000, coach: 'Uğur Uçar', formation: '4-2-3-1',
+    colors: ['#E30613', '#111111'], kit: { pattern: 'plain', colors: ['#E30613', '#111111'] }, rep: 60, balance: 5000000, coach: 'Uğur Uçar', formation: '4-2-3-1',
     players: `
-1|Marcos Felipe|BR|30|GK|70
-18|Erhan Erentürk|TR|31|GK|62
-54|Arif Şimşir|TR|23|GK|58
--|Çağlar Söyüncü|TR|30|CB|73
-5|Alexandre Penetra|PT|25|CB|68
-6|Hrvoje Smolčić|HR|25|CB|68
-4|Serdar Saatçı|TR|23|CB|67|72
-15|Arda Şengül|TR|21|CB|55
-11|Gökhan Sazdağı|TR|31|RB|64
-22|Hüseyin Bulut|TR|24|RB|58
-24|Andrei Borza|RO|20|LB|67|76
-88|Cemali Sertel|TR|30|LB|64
-3|Berat Özdemir|TR|28|DM|68
-20|Ylber Ramadani|AL|30|DM|68
-10|Mohamed Diomande|CI|24|CM|69
-8|Markus Karlsbakk|NO|22|CM|66|72
-26|Ermin Mahmić|BA|28|CM|63
-30|Ahmed Ildız|TR|30|CM|63
-17|Emircan Gürlük|TR|21|CM|55
-16|Fredy|AO|36|AM|66
-21|Göktan Gürpüz|TR|23|AM|63|70
-23|Cengiz Ünder|TR|29|RW|72
-89|Alexandros Kyziridis|GR|26|RW|63
-45|Furkan Çetinkaya|TR|22|LW|56
--|Youssoufa Moukoko|DE|21|ST|70|78
-9|Mame Thiam|SN|33|ST|66
-19|Jesús Ramírez|VE|28|ST|63
+1|Marcos Felipe|BR|30|GK|73
+18|Erhan Erentürk|TR|31|GK|65
+54|Arif Şimşir|TR|23|GK|61
+-|Çağlar Söyüncü|TR|30|CB|76
+5|Alexandre Penetra|PT|25|CB|71
+6|Hrvoje Smolčić|HR|25|CB|71
+4|Serdar Saatçı|TR|23|CB|70|75
+15|Arda Şengül|TR|21|CB|58
+11|Gökhan Sazdağı|TR|31|RB|67
+22|Hüseyin Bulut|TR|24|RB|61
+24|Andrei Borza|RO|20|LB|70|79
+88|Cemali Sertel|TR|30|LB|67
+3|Berat Özdemir|TR|28|DM|71
+20|Ylber Ramadani|AL|30|DM|71
+10|Mohamed Diomande|CI|24|CM|72
+8|Markus Karlsbakk|NO|22|CM|69|75
+26|Ermin Mahmić|BA|28|CM|66
+30|Ahmed Ildız|TR|30|CM|66
+17|Emircan Gürlük|TR|21|CM|58
+16|Fredy|AO|36|AM|69
+21|Göktan Gürpüz|TR|23|AM|66|73
+23|Cengiz Ünder|TR|29|RW|75
+89|Alexandros Kyziridis|GR|26|RW|66
+45|Furkan Çetinkaya|TR|22|LW|59
+-|Youssoufa Moukoko|DE|21|ST|73|81
+9|Mame Thiam|SN|33|ST|69
+19|Jesús Ramírez|VE|28|ST|66
 `,
   },
-];
 
 // Yurt dışı kulüpleri: transfer tekliflerinin ve satışların muhatapları.
 export const FOREIGN_CLUBS = [
