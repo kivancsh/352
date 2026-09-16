@@ -329,7 +329,7 @@ function renderGame() {
   const t = me();
   const unread = myInbox().filter((m) => !isRead(m) || (m.needsAction && !m.resolved)).length;
   let body = '';
-  if (view.tab === 'home') body = (isMp() ? onlineCard() : '') + installBanner() + homeHtml();
+  if (view.tab === 'home') body = (isMp() ? onlineCard() : '') + careerSwitchCard() + installBanner() + homeHtml();
   else if (view.tab === 'squad') body = squadHtml();
   else if (view.tab === 'comps') body = compsHtml();
   else if (view.tab === 'transfer') body = transferHtml();
@@ -523,6 +523,27 @@ function renderLobby() {
       <button class="btn ghost block" data-act="mpLeave">Lobiden çık</button>
     </div>
   </main></div>`;
+}
+
+// Ortak lig ile tek oyunculu kariyer arasinda gecis kartı. İkisi de ayrı kayıtlarda
+// durduğu için geçiş hiçbir şeyi silmez; oyuncunun bunu görmesi için ana ekranda dururuz.
+function careerSwitchCard() {
+  const store = onlineStore();
+  if (isMp()) {
+    let hasSolo = false;
+    try { hasSolo = !!localStorage.getItem(SAVE_KEY); } catch { /* yok say */ }
+    if (!hasSolo) return '';
+    return `<section class="card">
+      <div class="row-flex"><span style="font-size:26px">⚽</span><div class="grow"><b>Tek oyunculu kariyerin duruyor</b><div class="muted small">Arkadaşların müsait değilken kendi kariyerinden devam edebilirsin. Buradaki takımın ligde kalır, istediğinde geri dönersin.</div></div></div>
+      <button class="btn block" data-act="goSolo">Tek oyunculu kariyerime geç</button>
+    </section>`;
+  }
+  const lg = (store.leagues || [])[0];
+  if (!lg || !onlineAvailable()) return '';
+  return `<section class="card">
+    <div class="row-flex"><span style="font-size:26px">👥</span><div class="grow"><b>Ortak ligin devam ediyor</b><div class="muted small">${esc(teamNameStatic(lg.teamId))} · Lig kodu ${esc(lg.code)}. Arkadaşların müsait olduğunda oradan devam et; bu kariyerin burada seni bekler.</div></div></div>
+    <button class="btn block" data-act="goLeague" data-code="${esc(lg.code)}">Ortak lige geç</button>
+  </section>`;
 }
 
 function onlineCard() {
@@ -1446,9 +1467,9 @@ function openClub() {
     ${line('Maaşlar', f.wages)}${line('Transfer harcamaları', f.purchases)}${line('İşletme giderleri', f.running)}
     <div class="hr"></div>
     ${isMp()
-      ? `<div class="note small">Ortak kariyer · Lig kodu <b>${esc(session.code)}</b>. Ligden çıksan da takımın ligde kalır; istediğin zaman kodla geri dönebilirsin.</div>
+      ? `<div class="note small">Ortak kariyer · Lig kodu <b>${esc(session.code)}</b>. Tek oyunculu kariyerine geçsen de takımın ligde kalır; ana ekrandan tek dokunuşla geri dönersin.</div>
          <button class="btn block" data-act="mpShare">Arkadaş davet et</button>
-         <button class="btn danger block" data-act="mpLeave">Bu cihazda ligden çık</button>`
+         <button class="btn block" data-act="goSolo">Tek oyunculu kariyerime geç</button>`
       : `<button class="btn block" data-act="mpOpen">Arkadaşlarla oyna</button>
          <button class="btn block" data-act="cloudMenu">Bulut yedek</button>
          <button class="btn danger block" data-act="confirmNew">Yeni kariyer başlat</button>
@@ -2273,6 +2294,12 @@ const actions = {
   },
   mpBack: () => leaveMp(),
   mpLeave: () => leaveMp(),
+  goSolo: () => leaveMp(),
+  goLeague: (d) => mpRun(async () => {
+    closeModal();
+    await flushSave();
+    await connect(d.code);
+  }),
   mpPickTeam: (d) => { mp.teamId = d.id; render(); },
   mpCreate: () => mpRun(async () => {
     requireNameTeam();
