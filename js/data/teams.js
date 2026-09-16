@@ -607,6 +607,7 @@ export const TEAMS = [
 19|Jesús Ramírez|VE|28|ST|66
 `,
   },
+];
 
 // Yurt dışı kulüpleri: transfer tekliflerinin ve satışların muhatapları.
 export const FOREIGN_CLUBS = [
