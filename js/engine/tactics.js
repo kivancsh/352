@@ -3,96 +3,18 @@ import { posFit, isAvailable } from './players.js';
 
 // Her slot: [mevki, x, y] — x: 0 sol, 100 sağ; y: 0 rakip kale, 100 kendi kalemiz.
 export const FORMATIONS = {
-  '4-3-3': {
-    name: '4-3-3 Balanced Attack',
-    positions: ['CB', 'CB', 'LB', 'RB', 'CM', 'CM', 'CM', 'LW', 'ST', 'RW', 'GK'],
-    strength: 1.05,
-    offenseBonus: 0.12,
-    defenseBonus: 0.08,
-    midfield: true,
-    flexibility: 0.8,
-    stability: 0.75
-  },
-
-  '3-4-3': {
-    name: '3-4-3 Wide Attack',
-    positions: ['CB', 'CB', 'CB', 'LWB', 'RWB', 'CM', 'CM', 'LW', 'ST', 'RW', 'GK'],
-    strength: 1.02,
-    offenseBonus: 0.14,
-    defenseBonus: 0.10,
-    midfield: true,
-    flexibility: 0.9,
-    stability: 0.78,
-    counterAttackBonus: 0.07
-  },
-
-  '4-2-4': {
-    name: '4-2-4 Attacking',
-    positions: ['CB', 'CB', 'LB', 'RB', 'CDM', 'CDM', 'CM', 'LW', 'ST', 'RW', 'GK'],
-    strength: 1.08,
-    offenseBonus: 0.16,
-    defenseBonus: 0.06,
-    midfield: true,
-    flexibility: 0.7,
-    stability: 0.70
-  },
-
-  '5-3-2': {
-    name: '5-3-2 Defensive',
-    positions: ['CB', 'CB', 'CB', 'LB', 'RB', 'CM', 'CM', 'CM', 'ST', 'ST', 'GK'],
-    strength: 1.06,
-    offenseBonus: 0.08,
-    defenseBonus: 0.16,
-    midfield: true,
-    flexibility: 0.6,
-    stability: 0.85
-  },
-
-  '4-1-4-1': {
-    name: '4-1-4-1 Solid Defense',
-    positions: ['CB', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CM', 'CAM', 'ST', 'RW', 'GK'],
-    strength: 0.98,
-    offenseBonus: 0.10,
-    defenseBonus: 0.12,
-    midfield: true,
-    flexibility: 0.75,
-    stability: 0.82,
-    defensiveStability: 0.08
-  },
-
-  '3-5-2': {
-    name: '3-5-2 Wing Play',
-    positions: ['CB', 'CB', 'CB', 'LWB', 'RWB', 'CM', 'CM', 'CM', 'ST', 'ST', 'GK'],
-    strength: 1.04,
-    offenseBonus: 0.12,
-    defenseBonus: 0.10,
-    midfield: true,
-    flexibility: 0.75,
-    stability: 0.80
-  },
-
-  '5-4-1': {
-    name: '5-4-1 Defensive',
-    positions: ['CB', 'CB', 'CB', 'LB', 'RB', 'CM', 'CM', 'LW', 'RW', 'ST', 'GK'],
-    strength: 1.00,
-    offenseBonus: 0.06,
-    defenseBonus: 0.18,
-    midfield: true,
-    flexibility: 0.5,
-    stability: 0.88
-  },
-
-  '4-4-2': {
-    name: '4-4-2 Classic',
-    positions: ['CB', 'CB', 'LB', 'RB', 'CM', 'CM', 'LW', 'RW', 'ST', 'ST', 'GK'],
-    strength: 1.02,
-    offenseBonus: 0.12,
-    defenseBonus: 0.10,
-    midfield: true,
-    flexibility: 0.65,
-    stability: 0.75
-  }
-};
+  '4-2-3-1': [['GK', 50, 92], ['RB', 86, 70], ['CB', 62, 76], ['CB', 38, 76], ['LB', 14, 70],
+    ['DM', 62, 56], ['DM', 38, 56], ['RW', 84, 33], ['AM', 50, 36], ['LW', 16, 33], ['ST', 50, 13]],
+  '4-3-3': [['GK', 50, 92], ['RB', 86, 70], ['CB', 62, 76], ['CB', 38, 76], ['LB', 14, 70],
+    ['CM', 70, 50], ['DM', 50, 58], ['CM', 30, 50], ['RW', 82, 22], ['ST', 50, 13], ['LW', 18, 22]],
+  '4-4-2': [['GK', 50, 92], ['RB', 86, 70], ['CB', 62, 76], ['CB', 38, 76], ['LB', 14, 70],
+    ['RW', 86, 44], ['CM', 60, 50], ['CM', 40, 50], ['LW', 14, 44], ['ST', 60, 16], ['ST', 40, 16]],
+  '4-1-4-1': [['GK', 50, 92], ['RB', 86, 70], ['CB', 62, 76], ['CB', 38, 76], ['LB', 14, 70],
+    ['DM', 50, 60], ['RW', 85, 38], ['CM', 62, 44], ['CM', 38, 44], ['LW', 15, 38], ['ST', 50, 13]],
+  '3-5-2': [['GK', 50, 92], ['CB', 72, 76], ['CB', 50, 78], ['CB', 28, 76], ['RB', 88, 50],
+    ['CM', 66, 50], ['DM', 50, 60], ['CM', 34, 50], ['LB', 12, 50], ['ST', 60, 16], ['ST', 40, 16]],
+  '5-3-2': [['GK', 50, 92], ['RB', 88, 64], ['CB', 70, 76], ['CB', 50, 78], ['CB', 30, 76], ['LB', 12, 64],
+    ['CM', 70, 48], ['CM', 50, 52], ['CM', 30, 48], ['ST', 60, 16], ['ST', 40, 16]],
 };
 
 export const MENTALITIES = {
