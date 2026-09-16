@@ -702,16 +702,18 @@ export class OnlineSession {
   async submit(type, payload, wait = true) {
   const action = clean({ uid: this.uid, teamId: this.myTeamId(), type, payload, status: 'pending', ts: Date.now() });
   
-  // ===== OPTIMISTIC UPDATE: Local state'i hemen uygula =====
+  async submit(type, payload, wait = true) {
+  const action = clean({ uid: this.uid, teamId: this.myTeamId(), type, payload, status: 'pending', ts: Date.now() });
+  
+  // OPTIMISTIC UPDATE
   const optimisticResult = clean(applyAction(this.state, this.league, action));
   
   if (optimisticResult.ok) {
-    // User hemen sonucu görür (⚡ FAST)
     this.hooks.onState?.(this.state);
     this.hooks.toast?.('✅ İşlem uygulandı');
   }
   
-  // ===== ARKAPLAN'DA: Firebase'e async gönder =====
+  // ASYNC SYNC
   this.net.addAction(this.code, action)
     .then(id => {
       this.tick();
@@ -725,7 +727,6 @@ export class OnlineSession {
       });
     })
     .catch(error => {
-      // ❌ BAŞARISIZ: Local state'i geri al
       this.rev = -1;
       this.pull().then(() => {
         this.hooks.toast?.('⚠️ İşlem başarısız, durumu yeniledi');
@@ -734,23 +735,4 @@ export class OnlineSession {
   
   if (!wait) return { ok: true };
   return { ok: optimisticResult.ok, queued: true };
-}
-    if (!wait) return { ok: true };
-    return new Promise((resolve) => {
-      let done = false;
-      let un = null;
-      const finish = (r) => {
-        if (done) return;
-        done = true;
-        un?.();
-        clearTimeout(timeout);
-        resolve(r);
-      };
-      const timeout = setTimeout(() => finish({ ok: false, queued: true, text: 'İşlemin sıraya alındı. Ligdeki bir oyuncu çevrimiçi olduğunda uygulanacak.' }), 25000);
-      un = this.net.watchAction(this.code, id, (a) => {
-        if (a && a.status === 'done') finish(a.result || { ok: true });
-      });
-      if (done) un();
-    });
-  }
 }
