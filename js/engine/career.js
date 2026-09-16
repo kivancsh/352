@@ -43,7 +43,161 @@ export function fansLabel(v) {
   return 'Tepkili';
 }
 
-// ---------------- Başarımlar ----------------
+// ===== PROGRESSION TIERS (YENİ) =====
+export const PROGRESSION_TIERS = {
+  beginner: {
+    name: 'Başlangıç Ligi',
+    seasons: [1, 2, 3],
+    opponentDifficulty: 'easy',
+    teamPowerRange: [62, 68],
+    estimatedWinRate: 0.50,
+    description: 'Oyunu öğren, baskı yok',
+    badge: '🟢'
+  },
+  
+  intermediate: {
+    name: 'Orta Seviye Lig',
+    seasons: [4, 5, 6],
+    opponentDifficulty: 'normal',
+    teamPowerRange: [65, 72],
+    estimatedWinRate: 0.45,
+    description: 'Rekabetçi oynama, karışık rakipler',
+    badge: '🟡'
+  },
+  
+  advanced: {
+    name: 'İleri Seviye Lig',
+    seasons: [7, 8, 9, 10],
+    opponentDifficulty: 'hard',
+    teamPowerRange: [68, 76],
+    estimatedWinRate: 0.35,
+    description: 'Uzman oynama, rekabetçi meta',
+    badge: '🟠'
+  },
+  
+  competitive: {
+    name: 'Rekabetçi Lig',
+    seasons: [11],
+    opponentDifficulty: 'hard',
+    teamPowerRange: [70, 78],
+    estimatedWinRate: 0.30,
+    description: 'Elite rekabetin',
+    badge: '🔴'
+  }
+};
+
+export function getProgressionTier(currentSeason) {
+  if (!currentSeason || currentSeason < 1) return PROGRESSION_TIERS.beginner;
+  
+  for (const [key, tier] of Object.entries(PROGRESSION_TIERS)) {
+    if (tier.seasons.includes(currentSeason)) {
+      return tier;
+    }
+  }
+  return PROGRESSION_TIERS.competitive;
+}
+
+export function getOpponentDifficulty(currentSeason) {
+  const tier = getProgressionTier(currentSeason);
+  return tier.opponentDifficulty;
+}
+
+export function getTierBadge(currentSeason) {
+  const tier = getProgressionTier(currentSeason);
+  return tier.badge;
+}
+
+export function getEstimatedWinRate(currentSeason) {
+  const tier = getProgressionTier(currentSeason);
+  return tier.estimatedWinRate;
+}
+
+// ===== STAR PLAYER IMPACT SYSTEM (YENİ) =====
+export const STAR_PLAYER_IMPACT = {
+  singleStar92Plus: {
+    bonus: 0.10,
+    maxPowerBoost: 3.5,
+    description: '92+ rated oyuncu'
+  },
+  
+  twoStars90Plus: {
+    bonus: 0.08,
+    maxPowerBoost: 5.0,
+    description: 'İki 90+ rated oyuncu'
+  },
+  
+  threeStars88Plus: {
+    bonus: 0.06,
+    maxPowerBoost: 6.0,
+    description: 'Üç 88+ rated oyuncu'
+  }
+};
+
+export function calculateStarBonus(squad) {
+  if (!squad || !squad.players) return 0;
+  
+  let totalBonus = 0;
+  
+  const stars92 = squad.players.filter(p => p.rating >= 92).length;
+  const stars90 = squad.players.filter(p => p.rating >= 90 && p.rating < 92).length;
+  const stars88 = squad.players.filter(p => p.rating >= 88 && p.rating < 90).length;
+  
+  if (stars92 > 0) {
+    totalBonus = Math.min(
+      STAR_PLAYER_IMPACT.singleStar92Plus.bonus,
+      STAR_PLAYER_IMPACT.singleStar92Plus.maxPowerBoost / 100
+    );
+  }
+  
+  if (stars90 >= 2 && totalBonus < STAR_PLAYER_IMPACT.twoStars90Plus.bonus) {
+    totalBonus = STAR_PLAYER_IMPACT.twoStars90Plus.bonus;
+  }
+  
+  if (stars88 >= 3 && totalBonus < STAR_PLAYER_IMPACT.threeStars88Plus.bonus) {
+    totalBonus = STAR_PLAYER_IMPACT.threeStars88Plus.bonus;
+  }
+  
+  return totalBonus;
+}
+
+export function getStarPlayerDescription(squad) {
+  if (!squad || !squad.players) return 'Yıldız oyuncu yok';
+  
+  const stars92 = squad.players.filter(p => p.rating >= 92);
+  const stars90 = squad.players.filter(p => p.rating >= 90 && p.rating < 92);
+  const stars88 = squad.players.filter(p => p.rating >= 88 && p.rating < 90);
+  
+  const descriptions = [];
+  
+  if (stars92.length > 0) {
+    descriptions.push(`${stars92.length} dünya çapında oyuncu(lar) (92+)`);
+  }
+  if (stars90.length > 0) {
+    descriptions.push(`${stars90.length} elit oyuncu(lar) (90-91)`);
+  }
+  if (stars88.length > 0) {
+    descriptions.push(`${stars88.length} mükemmel oyuncu(lar) (88-89)`);
+  }
+  
+  return descriptions.length > 0 ? descriptions.join(', ') : 'Dengeli kadro';
+}
+
+// ===== DEVELOPMENT ARC (YENİ) =====
+export function getSeasonalDevelopment(season, currentPower) {
+  const developmentBonus = Math.max(0, Math.min(2, season / 10));
+  const ageDecay = season > 8 ? -0.5 * (season - 8) : 0;
+  return currentPower + developmentBonus + ageDecay;
+}
+
+export function getYouthPlayerBonus(playerAge, playerPotential) {
+  if (playerAge < 24 && playerPotential > 80) {
+    const potentialGap = playerPotential - 75;
+    return Math.min(potentialGap / 20, 0.08);
+  }
+  return 0;
+}
+
+// ===== CAREER MILESTONES (MEVCUT) =====
 export const ACHIEVEMENTS = [
   { id: 'first_win', icon: '✅', title: 'İlk galibiyet', desc: 'Kariyerindeki ilk resmi maçı kazan.' },
   { id: 'derby', icon: '🔥', title: 'Derbi zaferi', desc: 'Büyük bir İstanbul derbisini ya da Trabzonspor maçını kazan.' },
@@ -76,7 +230,8 @@ function unlock(state, tid, id) {
   addMessage(state, { teamId: tid, title: `${a.icon} Başarım açıldı: ${a.title}`, body: `${a.desc} Tüm başarımlarını kulüp ekranındaki Kariyer bölümünde görebilirsin.`, kind: 'achv', quiet: true });
 }
 
-// ---------------- Maç sonrası ----------------
+// ===== MEVCUT FONKSİYONLAR DEVAM EDİYOR =====
+
 export function isDerby(state, f) {
   const a = f.home;
   const b = f.away;
@@ -135,7 +290,7 @@ export function careerAfterMatch(state, f) {
   }
 }
 
-// ---------------- Basın toplantısı ----------------
+// ===== PRESS CONFERENCE (MEVCUT) =====
 export function needsPress(state, tid, f) {
   if (!f || state.press?.[tid]?.[f.id] !== undefined) return false;
   return isDerby(state, f) || UEFA.includes(f.comp) || ['SF', 'F'].includes(f.stage);
@@ -218,14 +373,13 @@ export function answerPress(state, tid, fid, answers = []) {
   if (q2) quotes.push(q2.t);
   const oppId = f.home === tid ? f.away : f.home;
   if (quotes.length) addNews(state, `${state.managers[tid]} (${state.teams[tid].name}), ${state.teams[oppId].name} maçı öncesi konuştu: "${quotes.join(' ')}"`, 'club', [tid, oppId], 'Basın toplantısı');
-  // Eski maçların kayıtlarını temizle
   const keep = new Set(state.fixtures.filter((x) => !x.played).map((x) => x.id));
   for (const k of Object.keys(state.press[tid])) if (!keep.has(k) && k !== fid) delete state.press[tid][k];
   state.press[tid][fid] = a1 || 'none';
   return { ok: true, text: 'Basın toplantısı tamamlandı. Söyledikleriniz gündemde!' };
 }
 
-// ---------------- Oyuncuyla birebir görüşme ----------------
+// ===== PLAYER TALKS (MEVCUT) =====
 export const TALKS = {
   praise: { label: 'Performansını öv', icon: '👏' },
   demand: { label: 'Daha fazlasını iste', icon: '☝️' },
@@ -268,7 +422,7 @@ export function toggleShortlist(state, tid, pid) {
   return { ok: true, on: i < 0 };
 }
 
-// ---------------- Haftalık ve aylık gündem ----------------
+// ===== WEEKLY/MONTHLY AWARDS (MEVCUT) =====
 const TOTW_SHAPE = ['GK', 'RB', 'CB', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'LW', 'ST'];
 const SLOT_OK = { GK: ['GK'], RB: ['RB'], CB: ['CB'], LB: ['LB'], DM: ['DM', 'CM'], CM: ['CM', 'DM', 'AM'], AM: ['AM', 'CM'], RW: ['RW', 'LW'], LW: ['LW', 'RW'], ST: ['ST'] };
 
@@ -363,10 +517,8 @@ function monthlyAwards(state) {
 function weeklyCareer(state) {
   for (const tid of humansOf(state)) {
     const team = state.teams[tid];
-    // Taraftar zamanla dengeye döner
     state.fans[tid] = clamp(fansOf(state, tid) + (60 - fansOf(state, tid)) * 0.03, 0, 100);
     if (team.finance.balance >= 50e6) unlock(state, tid, 'rich');
-    // Verilen forma sözleri
     for (const pid of team.squad) {
       const p = state.players[pid];
       if (!p?.promise) continue;
@@ -381,7 +533,6 @@ function weeklyCareer(state) {
         p.promise = null;
       }
     }
-    // Transfer başarımları
     for (const x of state.transferLog.slice(0, 20)) {
       if (x.date < addDays(state.date, -8)) break;
       if (x.toId === tid && x.fee >= 15e6) unlock(state, tid, 'buy_big');
@@ -400,7 +551,7 @@ export function careerDaily(state) {
   if (state.date.endsWith('-01')) monthlyAwards(state);
 }
 
-// ---------------- Sezon sonu ----------------
+// ===== SEASON END (MEVCUT) =====
 export function careerSeasonEnd(state, summary) {
   const events = state.trophyEvents || [];
   for (const tid of humansOf(state)) {
@@ -420,7 +571,6 @@ export function careerSeasonEnd(state, summary) {
     if (c.seasons.filter((s) => s.teamId === tid).length >= 3) unlock(state, tid, 'seasons3');
     addFans(state, tid, won.length * 8 + (h.promoted ? 10 : 0) - (h.relegated ? 15 : 0));
 
-    // Tek oyunculu: başarılı teknik direktöre daha büyük kulüplerden iş teklifi
     if (!state.mp && tid === state.userTeamId && !state.gameOver) {
       const board = state.boards[tid];
       const great = won.length || h.promoted || (h.pos && board && h.pos <= board.target - 2);
@@ -441,7 +591,7 @@ export function careerSeasonEnd(state, summary) {
   }
 }
 
-// ---------------- İş teklifleri ----------------
+// ===== JOB OFFERS (MEVCUT) =====
 export function managerRep(state, tid) {
   const c = careerOf(state, tid);
   if (!c) return 50;
