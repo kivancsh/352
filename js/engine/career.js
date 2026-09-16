@@ -7,7 +7,7 @@ import { COMPS, UEFA, TR_LEAGUES, standings } from './comps.js';
 
 const BIG3 = ['gs', 'fb', 'bjk'];
 
-export const careerKey = (state, tid) => (state.mp ? tid : 'me');
+  export const careerKey = (state, tid) => (state.mp ? tid : 'me');
 export function careerOf(state, tid) {
   state.career ||= {};
   return state.career[careerKey(state, tid)] || null;
@@ -219,6 +219,14 @@ export const ACHIEVEMENTS = [
   { id: 'award', icon: '⭐', title: 'Ayın teknik direktörü', desc: 'Ayın teknik direktörü ödülünü kazan.' },
   { id: 'matches100', icon: '💯', title: '100 maç', desc: 'Kariyerinde 100 resmi maça çık.' },
   { id: 'seasons3', icon: '📅', title: 'Sadakat', desc: 'Aynı kulüpte 3 sezonu tamamla.' },
+  { id: 'matches15', icon: '🔢', title: '15 Maç', desc: 'Kariyerinde 15 resmi maça çık.' },
+  { id: 'matches25', icon: '📊', title: '25 Maç', desc: 'Kariyerinde 25 resmi maça çık.' },
+  { id: 'matches40', icon: '📈', title: '40 Maç', desc: 'Kariyerinde 40 resmi maça çık.' },
+  { id: 'matches75', icon: '📉', title: '75 Maç', desc: 'Kariyerinde 75 resmi maça çık.' },
+  { id: 'matches150', icon: '💯', title: '150 Maç', desc: 'Kariyerinde 150 resmi maça çık.' },
+  { id: 'goals50', icon: '⚽', title: '50 Gol', desc: 'Kariyerinde 50 gol at.' },
+  { id: 'goals100', icon: '🎯', title: '100 Gol', desc: 'Kariyerinde 100 gol at.' },
+  { id: 'goals250', icon: '🔥', title: '250 Gol', desc: 'Kariyerinde 250 gol at.' },
 ];
 
 function unlock(state, tid, id) {
@@ -275,6 +283,14 @@ export function careerAfterMatch(state, f) {
     if (euro && res === 1) unlock(state, tid, 'europe_win');
     if (euro && res === 1 && opp.rep >= 88) unlock(state, tid, 'giant');
     const total = c.matches.w + c.matches.d + c.matches.l;
+        if (total === 15) unlock(state, tid, 'matches15');
+        if (total === 25) unlock(state, tid, 'matches25');
+        if (total === 40) unlock(state, tid, 'matches40');
+        if (total === 75) unlock(state, tid, 'matches75');
+        if (total === 150) unlock(state, tid, 'matches150');
+        if (c.matches.gf >= 50) unlock(state, tid, 'goals50');
+        if (c.matches.gf >= 100) unlock(state, tid, 'goals100');
+        if (c.matches.gf >= 250) unlock(state, tid, 'goals250');
     if (total >= 100) unlock(state, tid, 'matches100');
     if (fansOf(state, tid) >= 90) unlock(state, tid, 'fans');
     if (euro && ['R16', 'QF', 'SF', 'F'].includes(f.stage)) unlock(state, tid, 'r16');
