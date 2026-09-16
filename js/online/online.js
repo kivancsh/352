@@ -700,9 +700,41 @@ export class OnlineSession {
 
   // İşlemi sıraya koyar; wait ise işleyicinin sonucunu bekler.
   async submit(type, payload, wait = true) {
-    const action = clean({ uid: this.uid, teamId: this.myTeamId(), type, payload, status: 'pending', ts: Date.now() });
-    const id = await this.net.addAction(this.code, action);
-    this.tick();
+  const action = clean({ uid: this.uid, teamId: this.myTeamId(), type, payload, status: 'pending', ts: Date.now() });
+  
+  // ===== OPTIMISTIC UPDATE: Local state'i hemen uygula =====
+  const optimisticResult = clean(applyAction(this.state, this.league, action));
+  
+  if (optimisticResult.ok) {
+    // User hemen sonucu görür (⚡ FAST)
+    this.hooks.onState?.(this.state);
+    this.hooks.toast?.('✅ İşlem uygulandı');
+  }
+  
+  // ===== ARKAPLAN'DA: Firebase'e async gönder =====
+  this.net.addAction(this.code, action)
+    .then(id => {
+      this.tick();
+      return new Promise((resolve) => {
+        let un = this.net.watchAction(this.code, id, (a) => {
+          if (a && a.status === 'done') {
+            un?.();
+            resolve(a.result);
+          }
+        });
+      });
+    })
+    .catch(error => {
+      // ❌ BAŞARISIZ: Local state'i geri al
+      this.rev = -1;
+      this.pull().then(() => {
+        this.hooks.toast?.('⚠️ İşlem başarısız, durumu yeniledi');
+      });
+    });
+  
+  if (!wait) return { ok: true };
+  return { ok: optimisticResult.ok, queued: true };
+}
     if (!wait) return { ok: true };
     return new Promise((resolve) => {
       let done = false;
