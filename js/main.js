@@ -404,6 +404,11 @@ function renderStart() {
           <div class="row-flex"><span style="font-size:26px">👥</span><div class="grow"><b>Arkadaşlarınla ortak kariyer</b><div class="muted small">Aynı dünyada her biriniz bir takımı yönetir, birbirinize transfer teklifi yaparsınız.</div></div></div>
           <button class="btn block" data-act="mpOpen">Arkadaşlarla oyna</button>
         </section>
+        ${cloudAvailable() ? `
+        <section class="card">
+          <div class="row-flex"><span style="font-size:26px">☁️</span><div class="grow"><b>Başka cihazdaki kariyerin</b><div class="muted small">Eski cihazında aldığın bulut yedeğin kodunu gir, kaldığın yerden devam et.</div></div></div>
+          <button class="btn block" data-act="cloudMenu">Bulut yedekten devam et</button>
+        </section>` : ''}
         <section class="card">
           <div class="card-h">${saved ? 'Yeni tek oyunculu kariyer' : 'Tek oyunculu kariyer'}</div>
           <label class="lbl" for="mgr">Teknik direktör adın</label>
@@ -2150,15 +2155,18 @@ const actions = {
     if (isMp()) return toast('Ortak kariyer zaten bulutta tutuluyor.');
     if (!cloudAvailable()) return toast('Bulut yedek bu surumde kapali.');
     const code = cloudCode();
+    const hasCareer = !!state;
     openModal(`${sheetHead('Bulut yedek')}
-      <p class="small muted">Kariyerini buluta yedekle; baska bir cihazda kodu girerek kaldigin yerden devam et.</p>
-      ${code ? `<div class="note small">Bu cihazin yedek kodu: <b>${esc(code)}</b></div>` : ''}
+      <p class="small muted">${hasCareer
+        ? 'Kariyerini buluta yedekle; baska bir cihazda kodu girerek kaldigin yerden devam et.'
+        : 'Baska bir cihazda aldigin yedegin kodunu gir, kariyerin bu cihaza yuklensin.'}</p>
+      ${hasCareer ? `${code ? `<div class="note small">Bu cihazin yedek kodu: <b>${esc(code)}</b></div>` : ''}
       <button class="btn primary block" data-act="cloudBackup">Buluta yedekle</button>
       <div class="hr"></div>
-      <label class="lbl" for="cloudCode">Baska cihazdaki yedek kodu</label>
+      <label class="lbl" for="cloudCode">Baska cihazdaki yedek kodu</label>` : '<label class="lbl" for="cloudCode">Yedek kodu</label>'}
       <input id="cloudCode" class="inp code" maxlength="${CLOUD_CODE_LEN}" placeholder="ABCD2345" autocomplete="off" autocapitalize="characters" spellcheck="false">
-      <button class="btn block" data-act="cloudRestore">Koddan geri yukle</button>
-      <p class="footer-note">Geri yukleme bu cihazdaki mevcut kariyerin yerine gecer.</p>`);
+      <button class="btn ${hasCareer ? '' : 'primary '}block" data-act="cloudRestore">Koddan geri yukle</button>
+      ${hasCareer ? '<p class="footer-note">Geri yukleme bu cihazdaki mevcut kariyerin yerine gecer.</p>' : ''}`);
   },
   cloudBackup: async (d, el) => {
     if (!state || isMp()) return;
@@ -2194,7 +2202,7 @@ const actions = {
       openModal(`${sheetHead('Yedek bulundu')}
         <div class="note"><b>${esc(m.team || 'Kariyer')}</b>${m.date ? ` &middot; ${esc(m.date)}` : ''}${m.manager ? `<br><span class="small muted">${esc(m.manager)}</span>` : ''}</div>
         <p class="small muted">Yedek tarihi: ${esc(when)}</p>
-        <p>Bu cihazdaki mevcut kariyerin silinecek. Devam edilsin mi?</p>
+        <p>${state ? 'Bu cihazdaki mevcut kariyerin silinecek. Devam edilsin mi?' : 'Bu kariyer bu cihaza yuklensin mi?'}</p>
         <div class="btns"><button class="btn" data-act="close">Vazgec</button><button class="btn primary" data-act="cloudRestoreDo">Geri yukle</button></div>`);
     } catch (e) {
       toast((e && e.message) || 'Geri yukleme basarisiz.');
