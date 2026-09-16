@@ -25,10 +25,17 @@ import {
   OnlineSession, getNet, onlineAvailable, createLeague, joinLeague, setMemberTeam, startLeague, leagueLink, UserError, MAX_MEMBERS,
   gzipB64, gunzipB64,
 } from './online/online.js';
+import {
+  cloudAvailable, cloudBackup as cloudPush, cloudRestore as cloudPull, normalizeCode as cloudNorm, CODE_LEN as CLOUD_CODE_LEN,
+} from './online/cloud-save.js';
 
 const SAVE_KEY = 'slm-save-v3';
 const OLD_SAVE_KEY = 'slm-save-v1';
 const ONLINE_KEY = 'slm-online';
+const CLOUD_CODE_KEY = 'slm-cloud-code';
+let pendingCloud = null;
+const cloudCode = () => { try { return localStorage.getItem(CLOUD_CODE_KEY) || ''; } catch { return ''; } };
+const setCloudCode = (c) => { try { localStorage.setItem(CLOUD_CODE_KEY, c); } catch { /* yok say */ } };
 const $app = document.getElementById('app');
 const $modal = document.getElementById('modal');
 const $toast = document.getElementById('toast');
@@ -1438,8 +1445,9 @@ function openClub() {
          <button class="btn block" data-act="mpShare">Arkadaş davet et</button>
          <button class="btn danger block" data-act="mpLeave">Bu cihazda ligden çık</button>`
       : `<button class="btn block" data-act="mpOpen">Arkadaşlarla oyna</button>
+         <button class="btn block" data-act="cloudMenu">Bulut yedek</button>
          <button class="btn danger block" data-act="confirmNew">Yeni kariyer başlat</button>
-         <p class="footer-note">Oyun her adımda bu cihazın tarayıcısına otomatik kaydedilir.</p>`}`);
+         <p class="footer-note">Oyun her adımda bu cihazın tarayıcısına otomatik kaydedilir. Bulut yedekle başka cihaza taşıyabilirsin.</p>`}`);
 }
 
 function openCareer() {
@@ -2137,6 +2145,73 @@ const actions = {
     try { await deferredInstall.userChoice; } catch { /* yok say */ }
     deferredInstall = null;
     render();
+  },
+  cloudMenu: () => {
+    if (isMp()) return toast('Ortak kariyer zaten bulutta tutuluyor.');
+    if (!cloudAvailable()) return toast('Bulut yedek bu surumde kapali.');
+    const code = cloudCode();
+    openModal(`${sheetHead('Bulut yedek')}
+      <p class="small muted">Kariyerini buluta yedekle; baska bir cihazda kodu girerek kaldigin yerden devam et.</p>
+      ${code ? `<div class="note small">Bu cihazin yedek kodu: <b>${esc(code)}</b></div>` : ''}
+      <button class="btn primary block" data-act="cloudBackup">Buluta yedekle</button>
+      <div class="hr"></div>
+      <label class="lbl" for="cloudCode">Baska cihazdaki yedek kodu</label>
+      <input id="cloudCode" class="inp code" maxlength="${CLOUD_CODE_LEN}" placeholder="ABCD2345" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <button class="btn block" data-act="cloudRestore">Koddan geri yukle</button>
+      <p class="footer-note">Geri yukleme bu cihazdaki mevcut kariyerin yerine gecer.</p>`);
+  },
+  cloudBackup: async (d, el) => {
+    if (!state || isMp()) return;
+    el.disabled = true;
+    try {
+      await flushSave();
+      const payload = localStorage.getItem(SAVE_KEY);
+      const t = me();
+      const res = await cloudPush(payload, {
+        team: t ? t.name : '', season: state.season, date: state.date, manager: managerName(),
+      }, cloudCode());
+      setCloudCode(res.code);
+      openModal(`${sheetHead('Yedek hazir')}
+        <p>Kariyerin buluta yedeklendi.</p>
+        <div class="note">Yedek kodun: <b style="font-size:20px;letter-spacing:2px">${esc(res.code)}</b></div>
+        <p class="small muted">Bu kodu not al. Baska bir cihazda Kulup ekranindaki Bulut yedek bolumune girerek kaldigin yerden devam edebilirsin.</p>
+        <button class="btn primary block" data-act="close">Tamam</button>`);
+    } catch (e) {
+      toast((e && e.message) || 'Yedekleme basarisiz.');
+      el.disabled = false;
+    }
+  },
+  cloudRestore: async (d, el) => {
+    const input = document.getElementById('cloudCode');
+    const code = cloudNorm(input ? input.value : '');
+    if (code.length !== CLOUD_CODE_LEN) return toast(CLOUD_CODE_LEN + ' haneli kodu gir.');
+    el.disabled = true;
+    try {
+      const res = await cloudPull(code);
+      pendingCloud = { code, payload: res.payload };
+      const when = res.ts ? new Date(res.ts).toLocaleString('tr-TR') : '';
+      const m = res.meta || {};
+      openModal(`${sheetHead('Yedek bulundu')}
+        <div class="note"><b>${esc(m.team || 'Kariyer')}</b>${m.date ? ` &middot; ${esc(m.date)}` : ''}${m.manager ? `<br><span class="small muted">${esc(m.manager)}</span>` : ''}</div>
+        <p class="small muted">Yedek tarihi: ${esc(when)}</p>
+        <p>Bu cihazdaki mevcut kariyerin silinecek. Devam edilsin mi?</p>
+        <div class="btns"><button class="btn" data-act="close">Vazgec</button><button class="btn primary" data-act="cloudRestoreDo">Geri yukle</button></div>`);
+    } catch (e) {
+      toast((e && e.message) || 'Geri yukleme basarisiz.');
+      el.disabled = false;
+    }
+  },
+  cloudRestoreDo: () => {
+    if (!pendingCloud) return;
+    try {
+      localStorage.setItem(SAVE_KEY, pendingCloud.payload);
+      localStorage.removeItem(OLD_SAVE_KEY);
+      setCloudCode(pendingCloud.code);
+    } catch (e) {
+      toast('Kayit bu cihaza yazilamadi.');
+      return;
+    }
+    location.reload();
   },
   hideInstall: () => {
     try { localStorage.setItem('slm-install-hidden', '1'); } catch { /* yok say */ }
