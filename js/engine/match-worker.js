@@ -1,36 +1,20 @@
 // ===== MATCH SIMULATION WEB WORKER =====
-// Heavy calculation'ı separate thread'te çalıştır
-// Ana thread'i free tut, 60 FPS smooth kalsın
-
 self.onmessage = (event) => {
   const { gameState, tick, formation } = event.data;
   
   try {
-    // ===== HEAVY COMPUTATION (Main thread'i block etmez) =====
-    
-    // 1. AI Decision Logic
     const aiDecisions = calculateAIDecisions(gameState, formation);
-    
-    // 2. Physics Update
     const updatedState = runPhysicsSimulation(gameState, aiDecisions, tick);
-    
-    // 3. Player Position Update
     updatePlayerPositions(updatedState);
-    
-    // 4. Ball Movement
     updateBallPhysics(updatedState);
-    
-    // 5. Render Frame Build
     const renderFrame = buildRenderData(updatedState);
     
-    // ===== GERI GÖNDER =====
     self.postMessage({
       success: true,
       state: updatedState,
       render: renderFrame,
       tick: tick
     });
-    
   } catch (error) {
     self.postMessage({
       success: false,
@@ -40,11 +24,9 @@ self.onmessage = (event) => {
   }
 };
 
-// ===== HELPER FUNCTIONS =====
 function calculateAIDecisions(state, formation) {
-  // AI takımların kararlarını hesapla
   const decisions = {};
-  state.teams.forEach(team => {
+  state.teams?.forEach(team => {
     decisions[team.id] = {
       pass: Math.random() > 0.4,
       shoot: Math.random() > 0.7,
@@ -55,44 +37,43 @@ function calculateAIDecisions(state, formation) {
 }
 
 function runPhysicsSimulation(state, decisions, tick) {
-  // Oyuncu pozisyonları, top hareketi, collision'lar
-  const newState = JSON.parse(JSON.stringify(state)); // Deep copy
+  const newState = JSON.parse(JSON.stringify(state));
   
-  // Update positions based on AI decisions
-  newState.players.forEach(player => {
-    player.x += player.vx * 0.016; // 60 FPS tick
-    player.y += player.vy * 0.016;
-    player.stamina -= 0.1;
+  newState.players?.forEach(player => {
+    player.x = (player.x || 0) + (player.vx || 0) * 0.016;
+    player.y = (player.y || 0) + (player.vy || 0) * 0.016;
+    player.stamina = Math.max(0, (player.stamina || 100) - 0.1);
   });
   
   return newState;
 }
 
 function updatePlayerPositions(state) {
-  state.players.forEach(p => {
+  state.players?.forEach(p => {
     p.animated = true;
   });
 }
 
 function updateBallPhysics(state) {
+  if (!state.ball) return;
   const ball = state.ball;
-  ball.x += ball.vx * 0.016;
-  ball.y += ball.vy * 0.016;
+  ball.x = (ball.x || 0) + (ball.vx || 0) * 0.016;
+  ball.y = (ball.y || 0) + (ball.vy || 0) * 0.016;
   
-  if (ball.y > 105) ball.vx *= -0.9; // Boundary collision
-  ball.vx *= 0.99; // Friction
+  if (ball.y > 105) ball.vx = (ball.vx || 0) * -0.9;
+  ball.vx = (ball.vx || 0) * 0.99;
 }
 
 function buildRenderData(state) {
   return {
-    players: state.players.map(p => ({
+    players: (state.players || []).map(p => ({
       id: p.id,
       x: p.x,
       y: p.y,
       name: p.name
     })),
-    ball: { x: state.ball.x, y: state.ball.y },
-    score: state.score,
-    time: state.time
+    ball: { x: state.ball?.x || 0, y: state.ball?.y || 0 },
+    score: state.score || { h: 0, a: 0 },
+    time: state.time || 0
   };
 }
