@@ -19,7 +19,6 @@ export const MAX_MEMBERS = 8;
 const LEASE_MS = 20000;
 const LIVE_TICK_MS = 1500;
 const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const FIREBASE_TIMEOUT = 5000; // 5 saniye timeout
 
 // --- Sunucu seçimi ---
 function useLocalNet() {
@@ -91,148 +90,76 @@ export async function gunzipB64(b64) {
   return new Response(stream).text();
 }
 
-// --- DÜZELTME 1: Timeout Indicator ---
-function showLoadingIndicator(message = '⏳ İşlem yapılıyor... (5 saniye)') {
-  let loader = document.getElementById('firebaseLoadingSpinner');
-  if (!loader) {
-    loader = document.createElement('div');
-    loader.id = 'firebaseLoadingSpinner';
-    loader.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.85);color:white;padding:25px 35px;border-radius:12px;z-index:9999;font-size:16px;font-family:Arial,sans-serif;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);';
-    document.body.appendChild(loader);
-  }
-  loader.textContent = message;
-  loader.style.display = 'block';
-  return loader;
-}
-
-function hideLoadingIndicator() {
-  const loader = document.getElementById('firebaseLoadingSpinner');
-  if (loader) loader.style.display = 'none';
-}
-
 // --- Lobi ---
 export async function createLeague(net, { name, teamId }) {
-  showLoadingIndicator('🏆 Lig oluşturuluyor...');
-  
   for (let i = 0; i < 6; i++) {
     const code = randomCode();
     try {
-      await Promise.race([
-        net.createLeague(code, {
-          code,
-          createdBy: net.uid,
-          createdAt: Date.now(),
-          status: 'lobby',
-          members: { [net.uid]: { name, teamId, ready: false, joinedAt: Date.now() } },
-          memberUids: [net.uid],
-          rev: 0,
-          snapParts: 0,
-          stop: null,
-          processor: null,
-          updatedAt: Date.now(),
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), FIREBASE_TIMEOUT))
-      ]);
-      hideLoadingIndicator();
+      await net.createLeague(code, {
+        code,
+        createdBy: net.uid,
+        createdAt: Date.now(),
+        status: 'lobby',
+        members: { [net.uid]: { name, teamId, ready: false, joinedAt: Date.now() } },
+        memberUids: [net.uid],
+        rev: 0,
+        snapParts: 0,
+        stop: null,
+        processor: null,
+        updatedAt: Date.now(),
+      });
       return code;
     } catch (e) {
-      if (e.code !== 'exists' && e.message !== 'Timeout') {
-        hideLoadingIndicator();
-        throw new UserError(
-          '⚠️ Lig oluşturulamadı!\n\n' +
-          'Hata: ' + (e.message || 'Bilinmeyen hata') + '\n\n' +
-          '✓ İnternet bağlantınızı kontrol edin\n' +
-          '✓ Sayfayı yenileyin ve tekrar deneyin'
-        );
-      }
+      if (e.code !== 'exists') throw e;
     }
   }
-  hideLoadingIndicator();
-  throw new UserError('Lig kodu oluşturulamadı. Lütfen tekrar deneyin.');
+  throw new UserError('Lig kodu oluşturulamadı, tekrar dene.');
 }
 
 export async function joinLeague(net, code, { name, teamId }) {
-  showLoadingIndicator('📡 Lige katılınıyor... (5 saniye)');
-  
-  try {
-    return await Promise.race([
-      net.transactLeague(code, (lg) => {
-        if (!lg) throw new UserError('❌ Bu kodla bir lig bulunamadı.\n\nLütfen kodu kontrol edip tekrar deneyin.');
-        const takenBy = Object.entries(lg.members).find(([u, m]) => u !== net.uid && m.teamId === teamId);
-        if (lg.members[net.uid]) {
-          const patch = { [`members.${net.uid}.name`]: name };
-          if (lg.status === 'lobby' && teamId && !takenBy) patch[`members.${net.uid}.teamId`] = teamId;
-          return patch;
-        }
-        if (Object.keys(lg.members).length >= MAX_MEMBERS) throw new UserError(`❌ Lig dolu (en fazla ${MAX_MEMBERS} kişi).\n\nBaşka bir lig deneyin.`);
-        if (takenBy) throw new UserError(`❌ ${takenBy[1].name} bu takımı seçti.\n\nBaşka bir takım seçin.`);
-        return {
-          [`members.${net.uid}`]: { name, teamId, ready: false, joinedAt: Date.now() },
-          memberUids: [...lg.memberUids, net.uid],
-        };
-      }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Network timeout')), FIREBASE_TIMEOUT))
-    ]);
-  } catch (e) {
-    hideLoadingIndicator();
-    if (e instanceof UserError) throw e;
-    throw new UserError(
-      '⚠️ Lige katılamadı!\n\n' +
-      'Hata: ' + (e.message || 'Bağlantı hatası') + '\n\n' +
-      '✓ İnternet bağlantınızı kontrol edin\n' +
-      '✓ Lig kodunu kontrol edip tekrar deneyin'
-    );
-  } finally {
-    hideLoadingIndicator();
-  }
+  return net.transactLeague(code, (lg) => {
+    if (!lg) throw new UserError('Bu kodla bir lig bulunamadı.');
+    const takenBy = Object.entries(lg.members).find(([u, m]) => u !== net.uid && m.teamId === teamId);
+    if (lg.members[net.uid]) {
+      const patch = { [`members.${net.uid}.name`]: name };
+      if (lg.status === 'lobby' && teamId && !takenBy) patch[`members.${net.uid}.teamId`] = teamId;
+      return patch;
+    }
+    if (Object.keys(lg.members).length >= MAX_MEMBERS) throw new UserError(`Lig dolu (en fazla ${MAX_MEMBERS} kişi).`);
+    if (takenBy) throw new UserError(`${takenBy[1].name} bu takımı seçti. Başka bir takım seç.`);
+    return {
+      [`members.${net.uid}`]: { name, teamId, ready: false, joinedAt: Date.now() },
+      memberUids: [...lg.memberUids, net.uid],
+    };
+  });
 }
 
 export async function setMemberTeam(net, code, teamId) {
   return net.transactLeague(code, (lg) => {
-    if (!lg || lg.status !== 'lobby') throw new UserError('❌ Lig başladıktan sonra takım değiştirilemez.');
+    if (!lg || lg.status !== 'lobby') throw new UserError('Lig başladıktan sonra takım değiştirilemez.');
     const takenBy = Object.entries(lg.members).find(([u, m]) => u !== net.uid && m.teamId === teamId);
-    if (takenBy) throw new UserError(`❌ ${takenBy[1].name} bu takımı seçti.`);
+    if (takenBy) throw new UserError(`${takenBy[1].name} bu takımı seçti.`);
     return { [`members.${net.uid}.teamId`]: teamId };
   });
-}
-
-// --- DÜZELTME 4: Lig Üyeleri Bilgisi ---
-export function getLeaguePlayerCount(league) {
-  if (!league || !league.members) return { current: 0, max: MAX_MEMBERS, list: [] };
-  const members = Object.values(league.members);
-  return {
-    current: members.length,
-    max: MAX_MEMBERS,
-    list: members.map(m => ({ name: m.name, teamId: m.teamId, ready: m.ready }))
-  };
 }
 
 // Kurucu ligi başlatır: dünya oluşturulur ve ilk durum yayınlanır.
 export async function startLeague(net, code) {
   const lg = await net.getLeague(code);
   if (!lg || lg.status !== 'lobby') return false;
-  if (lg.createdBy !== net.uid) throw new UserError('❌ Ligi yalnızca kurucu başlatabilir.');
-  
-  showLoadingIndicator('🎮 Oyun dünyası oluşturuluyor...');
-  
-  try {
-    const members = Object.values(lg.members).sort((a, b) => a.joinedAt - b.joinedAt);
-    let seed = 7;
-    for (const ch of code) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) >>> 0;
-    const state = newMultiplayerGame(members.map((m) => ({ teamId: m.teamId, name: m.name })), code, seed);
-    const parts = await net.putSnapshot(code, 1, await gzipB64(JSON.stringify(state)));
-    const ok = await net.transactLeague(code, (cur) => {
-      if (!cur || cur.status !== 'lobby') return null;
-      return {
-        status: 'active', rev: 1, snapParts: parts, date: state.date, season: state.season, stop: null, updatedAt: Date.now(),
-      };
-    });
-    hideLoadingIndicator();
-    return !!ok;
-  } catch (e) {
-    hideLoadingIndicator();
-    throw new UserError('❌ Lig başlatılamadı: ' + (e.message || 'Bilinmeyen hata'));
-  }
+  if (lg.createdBy !== net.uid) throw new UserError('Ligi yalnızca kurucu başlatabilir.');
+  const members = Object.values(lg.members).sort((a, b) => a.joinedAt - b.joinedAt);
+  let seed = 7;
+  for (const ch of code) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) >>> 0;
+  const state = newMultiplayerGame(members.map((m) => ({ teamId: m.teamId, name: m.name })), code, seed);
+  const parts = await net.putSnapshot(code, 1, await gzipB64(JSON.stringify(state)));
+  const ok = await net.transactLeague(code, (cur) => {
+    if (!cur || cur.status !== 'lobby') return null;
+    return {
+      status: 'active', rev: 1, snapParts: parts, date: state.date, season: state.season, stop: null, updatedAt: Date.now(),
+    };
+  });
+  return !!ok;
 }
 
 // --- Dünya işlemleri ---
@@ -368,13 +295,7 @@ export class OnlineSession {
       const lg = this.league;
       if (!lg || !lg.rev || lg.rev === this.rev) return;
       try {
-        showLoadingIndicator('📥 Oyun durumu indiriliyor...');
-        const b64 = await Promise.race([
-          this.net.getSnapshot(this.code, lg.rev, lg.snapParts),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Download timeout')), FIREBASE_TIMEOUT * 2))
-        ]);
-        hideLoadingIndicator();
-        
+        const b64 = await this.net.getSnapshot(this.code, lg.rev, lg.snapParts);
         if (b64 == null) {
           await sleep(600);
           continue;
@@ -393,12 +314,7 @@ export class OnlineSession {
         s.userTeamId = this.myTeamId();
         this.hooks.onState?.(s);
       } catch (e) {
-        hideLoadingIndicator();
         console.warn('durum indirilemedi', e);
-        this.hooks.toast?.(
-          '⚠️ Oyun durumu indirilenemedi!\n\n' +
-          'İnternet bağlantınızı kontrol edin ve sayfayı yenileyin.'
-        );
         await sleep(1000);
       }
     }
@@ -411,15 +327,11 @@ export class OnlineSession {
     if (cur && cur.uid !== this.uid && cur.until > Date.now()) return;
     this.ticking = true;
     try {
-      const patch = await Promise.race([
-        this.net.transactLeague(this.code, (lg) => {
-          const p = lg?.processor;
-          if (!lg || lg.status !== 'active' || (p && p.uid !== this.uid && p.until > Date.now())) return null;
-          return { processor: { uid: this.uid, until: Date.now() + LEASE_MS } };
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Processor lease timeout')), FIREBASE_TIMEOUT))
-      ]);
-      
+      const patch = await this.net.transactLeague(this.code, (lg) => {
+        const p = lg?.processor;
+        if (!lg || lg.status !== 'active' || (p && p.uid !== this.uid && p.until > Date.now())) return null;
+        return { processor: { uid: this.uid, until: Date.now() + LEASE_MS } };
+      });
       if (!patch) return;
       this.league = { ...this.league, processor: patch.processor };
       if (!this.wasProcessor) {
@@ -436,10 +348,6 @@ export class OnlineSession {
       this.schedulePump();
     } catch (e) {
       console.warn('işleyici kirası alınamadı', e);
-      this.hooks.toast?.(
-        '⚠️ Sunucuya bağlanılamadı!\n\n' +
-        'İnternet bağlantınızı kontrol edin. Başka bir oyuncu çevrimiçi olduğunda sistem devralacaktır.'
-      );
     } finally {
       this.ticking = false;
     }
@@ -506,11 +414,7 @@ export class OnlineSession {
       if (changed) await this.publish(results, stop);
     } catch (e) {
       console.error(e);
-      this.hooks.toast?.(
-        `⚠️ Senkronizasyon hatası!\n\n` +
-        `Hata: ${e.message}\n\n` +
-        'Lütfen sayfayı yenileyin.'
-      );
+      this.hooks.toast?.(`Senkronizasyon hatası: ${e.message}`);
     } finally {
       this.pumping = false;
       if (this.pumpAgain) {
@@ -700,39 +604,25 @@ export class OnlineSession {
 
   // İşlemi sıraya koyar; wait ise işleyicinin sonucunu bekler.
   async submit(type, payload, wait = true) {
-  const action = clean({ uid: this.uid, teamId: this.myTeamId(), type, payload, status: 'pending', ts: Date.now() });
-  
-  async submit(type, payload, wait = true) {
-  const action = clean({ uid: this.uid, teamId: this.myTeamId(), type, payload, status: 'pending', ts: Date.now() });
-  
-  // OPTIMISTIC UPDATE
-  const optimisticResult = clean(applyAction(this.state, this.league, action));
-  
-  if (optimisticResult.ok) {
-    this.hooks.onState?.(this.state);
-    this.hooks.toast?.('✅ İşlem uygulandı');
-  }
-  
-  // ASYNC SYNC
-  this.net.addAction(this.code, action)
-    .then(id => {
-      this.tick();
-      return new Promise((resolve) => {
-        let un = this.net.watchAction(this.code, id, (a) => {
-          if (a && a.status === 'done') {
-            un?.();
-            resolve(a.result);
-          }
-        });
+    const action = clean({ uid: this.uid, teamId: this.myTeamId(), type, payload, status: 'pending', ts: Date.now() });
+    const id = await this.net.addAction(this.code, action);
+    this.tick();
+    if (!wait) return { ok: true };
+    return new Promise((resolve) => {
+      let done = false;
+      let un = null;
+      const finish = (r) => {
+        if (done) return;
+        done = true;
+        un?.();
+        clearTimeout(timeout);
+        resolve(r);
+      };
+      const timeout = setTimeout(() => finish({ ok: false, queued: true, text: 'İşlemin sıraya alındı. Ligdeki bir oyuncu çevrimiçi olduğunda uygulanacak.' }), 25000);
+      un = this.net.watchAction(this.code, id, (a) => {
+        if (a && a.status === 'done') finish(a.result || { ok: true });
       });
-    })
-    .catch(error => {
-      this.rev = -1;
-      this.pull().then(() => {
-        this.hooks.toast?.('⚠️ İşlem başarısız, durumu yeniledi');
-      });
+      if (done) un();
     });
-  
-  if (!wait) return { ok: true };
-  return { ok: optimisticResult.ok, queued: true };
+  }
 }
