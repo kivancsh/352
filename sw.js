@@ -1,6 +1,6 @@
 // Çevrimdışı oynanabilmesi için basit service worker.
 // Önce ağdan dener (güncellemeler hemen gelsin), ağ yoksa önbellekten sunar.
-const CACHE = 'slm-v8';
+const CACHE = 'slm-v9';
 const ASSETS = [
   './',
   'index.html',
@@ -28,6 +28,7 @@ const ASSETS = [
   'js/engine/career.js',
   'js/online/config.js',
   'js/online/online.js',
+  'js/online/cloud-save.js',
   'js/online/net-firebase.js',
   'js/online/net-local.js',
 ];
