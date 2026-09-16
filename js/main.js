@@ -6,13 +6,12 @@ const formationContainer = document.getElementById('formationGrid');
 let scrollOffset = 0;
 
 function renderFormationVirtual() {
-  const visibleStart = Math.floor(scrollOffset / 40); // Her oyuncu ~40px
-  const visibleEnd = visibleStart + 4; // Max 4 oyuncu görün
+  const visibleStart = Math.floor(scrollOffset / 40);
+  const visibleEnd = visibleStart + 4;
   
   formationContainer.innerHTML = '';
   
   lineup.forEach((playerId, idx) => {
-    // Sadece görünen aralıkta render et
     if (idx >= visibleStart && idx <= visibleEnd) {
       const playerEl = document.createElement('div');
       playerEl.className = 'formation-player';
@@ -23,11 +22,9 @@ function renderFormationVirtual() {
   });
 }
 
-// Scroll event'i
 formationContainer.addEventListener('scroll', (e) => {
   scrollOffset = e.target.scrollTop;
   renderFormationVirtual();
 });
 
-// İlk render
 renderFormationVirtual();
